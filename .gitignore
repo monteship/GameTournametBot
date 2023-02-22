@@ -3,3 +3,8 @@
 /identifier.sqlite
 /WTDB.db
 /.idea/
+/.replit
+/.upm
+/poetry.lock
+/pyproject.toml
+/__pycache__/
