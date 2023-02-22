@@ -145,6 +145,7 @@ def is_imposter(personal: list):
                 sql.execute(f"SELECT name, points FROM players WHERE name = '{imposter}'")
                 imposter_data = sql.fetchall()
                 delete_player(sql, imposter)
+                conn.commit()
                 abandoned_notify(imposter_data[0][0], imposter_data[0][1])
 
 
