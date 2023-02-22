@@ -10,6 +10,8 @@ WEBHOOK_DAY = os.environ['WEBHOOK_DAY']
 # URL of your clan (crucial: eng version of site)
 CLAN_URL = "https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine"
 TRACKED_CLAN_NAME = '╖SOFUA╖'
+SQUADRONS_PARSING_TIME = [
+    '1020', '1080', '1140', '1200', '1260', '1320', '1380', '1440']  # 17:00 GMT+2 -> 00:00 GMT+2
 
 # Embed's for the activity check
 PLAYERS_EMBED = [DiscordEmbed(title="Active players", color='ff0000', url=CLAN_URL),
@@ -17,8 +19,9 @@ PLAYERS_EMBED = [DiscordEmbed(title="Active players", color='ff0000', url=CLAN_U
 
 # Critical URL's. Don't change these.
 LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",
-           "https://warthunder.com/en/community/clansleaderboard/page/2",
-           "https://warthunder.com/en/community/clansleaderboard/page/3"]
+           "https://warthunder.com/en/community/clansleaderboard/page/2"]  # For parsing 40 clans
+# add more LB_URLS if needed ,
+#            "https://warthunder.com/en/community/clansleaderboard/page/3  # For additional 20 clans
 
 #  Embed's for the squadrons leaderboard
 SQUAD_EMBEDS = [DiscordEmbed(title="Таблиця лідерів (1)", color="ff0000", url=LB_URLS[0]),
@@ -32,15 +35,3 @@ DAY_END_EMBEDS = [DiscordEmbed(title="Результати (End)", color="ff0000
 
 # SQL Server Settings
 DB_PATH = "WTDB.db"
-
-# CSS Select
-# Squadron
-CSS_KILLED_AIR = \
-    "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(2)"
-CSS_KILLED_GROUND = \
-    "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(3)"
-CSS_DEATHS = \
-    "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(4)"
-CSS_PLAYERS_COUNT = "div#squadronsInfoRoot div.squadrons-info__content-wrapper > div:nth-child(2)"
-CSS_POINTS = "body#bodyRoot div:nth-child(1) > div.squadrons-counter__value"
-CSS_SQUAD_NAME = "div#squadronsInfoRoot div.squadrons-info__title"
