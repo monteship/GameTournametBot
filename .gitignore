@@ -1,0 +1,5 @@
+/venv/
+/chromedriver.exe
+/identifier.sqlite
+/WTDB.db
+/.idea/
