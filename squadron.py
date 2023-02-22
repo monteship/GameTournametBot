@@ -39,9 +39,13 @@ def delete_embed(*elements) -> None:
     :param elements: List of DiscordEmbed elements
     :return: None
     """
-    for element in elements:
-        for field in range(0, len(element.get_embed_fields())):
-            element.delete_embed_field(field)
+    try:
+        for element in elements:
+            for field in range(0, len(element.get_embed_fields())):
+                element.delete_embed_field(field)
+        return None
+    except IndexError:
+        return None
 
 
 def extract_squadron_data(url) -> dict:

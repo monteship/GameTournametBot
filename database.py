@@ -3,6 +3,10 @@ from config import DB_PATH
 
 
 def create_databases():
+    """
+    Creates the database if it doesn't exist.'
+    :return:
+    """
     with sqlite3.connect(DB_PATH, check_same_thread=False) as conn:
         sql = conn.cursor()
         sql.execute(

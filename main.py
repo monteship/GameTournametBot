@@ -42,15 +42,10 @@ def time_checker():
     curr_time = str(hours * 60 + minutes)
     print(curr_time)
     if curr_time in SQUADRONS_PARSING_TIME:
-        print("Parsing Squadrons")
-        start = timeit.default_timer()
         parsing_squadrons_thread()
-        print(f"Parsing Squadrons in {timeit.default_timer() - start}")
     elif curr_time == '960':  # Run at 16:00 GMT+2
-        print("Parsing Day Start")
         parsing_squadrons_day_start_thread()
     elif curr_time in ['1443']:  # Run at 00:05 GMT+2 next day
-        print("Parsing Day End")
         parsing_squadrons_day_end_thread()
     parsing_players_thread()  # Run every 1 minute
 
