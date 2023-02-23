@@ -14,7 +14,13 @@ from background import keep_alive
 
 def parsing_players_thread():
     Thread(target=parsing_players,
-           args=[WEBHOOK_PLAYERS, *PLAYERS_EMBED]).start()
+           args=[WEBHOOK_PLAYERS, 'players', *PLAYERS_EMBED]).start()
+
+
+def parsing_players_partial_thread():
+    Thread(target=parsing_players,
+           args=[WEBHOOK_DAY, "period_players",
+                 *PLAYERS_EMBED]).start()
 
 
 def parsing_squadrons_day_start_thread():
@@ -38,6 +44,9 @@ def parsing_squadrons_thread():
 
 
 def time_checker():
+    """
+    Build time constant, check if it's time to start parsing
+    """
     kiev_time = datetime.datetime.now(timezone('Europe/Kiev'))
     hours = kiev_time.hour
     minutes = kiev_time.minute
@@ -49,11 +58,14 @@ def time_checker():
         parsing_squadrons_day_start_thread()
     elif current_time in ['1443']:  # Run at 00:05 GMT+2 next day
         parsing_squadrons_day_end_thread()
+        # parsing_players_partial_thread()
     parsing_players_thread()  # Run every 1 minute
 
 
-if __name__ == '__main__':
-    # Run in production
+def main():
+    """
+    Main function
+    """
     try:
         keep_alive()
         create_databases()
@@ -65,3 +77,7 @@ if __name__ == '__main__':
         print("Manually stopped")
     except Exception as e:
         print(e)
+
+
+if __name__ == '__main__':
+    main()

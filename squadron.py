@@ -1,5 +1,6 @@
 import sqlite3
 import time
+import timeit
 
 import requests
 from bs4 import BeautifulSoup
@@ -56,9 +57,8 @@ def extract_squadron_data(url) -> dict:
     """
     page = requests.get(url, timeout=10)
     soup = BeautifulSoup(page.text, 'lxml')
-    full_name = soup.select_one(CSS_SELECTORS['SQUAD_NAME']).text[25:]
-    name = str(full_name.split(' ')[0])[1:-1]
-    points = int(soup.select_one(CSS_SELECTORS['POINTS']).text)
+    name = str(soup.find(class_="squadrons-info__title").text.split('[')[1].split(']')[0])
+    points = int(soup.find(class_="squadrons-counter__value").text)
     killed_air = int(soup.select_one(CSS_SELECTORS['KILL_A']).text)
     killed_ground = int(soup.select_one(CSS_SELECTORS['KILL_G']).text)
     kills = killed_air + killed_ground
@@ -66,6 +66,10 @@ def extract_squadron_data(url) -> dict:
     k_d = round(float(kills / deaths), 2)
     players_count = int(soup.select_one(CSS_SELECTORS['PLAYERS_COUNT']).text[44:])
     return {'name': name, 'points': points, 'k_d': k_d, 'players_count': players_count}
+
+
+def extract_squadron_data_2(url) -> dict:
+    pass
 
 
 def get_squadron_stats_change(sql, table_name: str, squadron_data: dict):
@@ -83,7 +87,7 @@ def get_squadron_stats_change(sql, table_name: str, squadron_data: dict):
         points_change = squadron_data['points'] - int(sql.fetchone()[0])
         sql.execute(f"SELECT k_d FROM {table_name} WHERE name = '{squadron_data['name']}'")
         old_k_d = float(sql.fetchone()[0])
-        k_d_change = round(float(squadron_data['k_d']), 2) - old_k_d
+        k_d_change = round(round(float(squadron_data['k_d']), 2) - old_k_d, 2)
         sql.execute(f"SELECT players FROM {table_name} WHERE name = '{squadron_data['name']}'")
         players_count_change = squadron_data['players_count'] - int(sql.fetchone()[0])
         return [rank_place_change, points_change, k_d_change, players_count_change]
@@ -134,12 +138,12 @@ def format_message(squadron_data: dict, squadron_changes: list):
     data = list(squadron_data.values())
     emoji = ':star:' if squadron_data['name'] == TRACKED_CLAN_NAME else ':military_helmet: '
     if squadron_changes is not None:
-        for i in range(0, 5):
+        for i in range(0, 4):
             if squadron_changes[i] > 0:
                 data[i] = f"{data[i]} <:small_green_triangle:996827805725753374> (+{squadron_changes[i]})"
             elif squadron_changes[i] < 0:
                 data[i] = f"{data[i]} 🔻 ({squadron_changes[i]})"
-    title = f"{emoji}{str(data[-1]).ljust(10)} {squadron_data['name']}"
+    title = f"{emoji}{str(data[-1]).ljust(15)} {squadron_data['name']}"
     message = """
                                         **Points**: {}
                                         **K\\D**: {}
@@ -207,7 +211,7 @@ def parsing_squadrons(webhook_url: str, table_name: str,
 
 
 if __name__ == '__main__':
-    create_databases()
+    # create_databases()
     start = time.time()
     parsing_squadrons(WEBHOOK_DAY, "period_squadrons", *DAY_START_EMBEDS)
-    print(int(time.time() - start), "seconds")
+    print(time.time() - start)

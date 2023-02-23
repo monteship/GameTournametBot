@@ -12,9 +12,20 @@ def create_databases():
         sql.execute(
             '''
             CREATE TABLE IF NOT EXISTS "players" 
-            ("name" INTEGER,
-            "rank" INTEGER,
-            "points" INTEGER)
+            ("name" TEXT,
+            "points" INTEGER,
+            "role" TEXT,
+            "date_join" TEXT,
+            "rank" INTEGER)
+            ''')
+        sql.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS "period_players" 
+            ("name" TEXT,
+            "points" INTEGER,
+            "role" TEXT,
+            "date_join" TEXT,
+            "rank" INTEGER)
             ''')
         sql.execute(
             '''
