@@ -195,7 +195,7 @@ def parsing_squadrons(webhook_url: str, table_name: str,
                         squadron_changes = get_squadron_stats_change(sql, table_name, squadron_data)
                         if squadron_changes is not None:
                             delete_squadron_data(sql, table_name, squadron_data)
-                            insert_squadron_data(sql, table_name, squadron_data)
+                        insert_squadron_data(sql, table_name, squadron_data)
                         if squadron_data['rank_place'] < 31:
                             title, message = format_message(squadron_data, squadron_changes)
                             add_squadron_to_embed(discord_emb, discord_emb_2, title, message, squadron_data)

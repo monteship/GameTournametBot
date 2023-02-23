@@ -11,7 +11,8 @@ WEBHOOK_ABANDONED = os.environ['WEBHOOK_ABANDONED']
 CLAN_URL = "https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine"
 TRACKED_CLAN_NAME = '╖SOFUA╖'
 SQUADRONS_PARSING_TIME = [
-    '1020', '1080', '1140', '1200', '1260', '1320', '1380', '1440']  # 17:00 GMT+2 -> 00:00 GMT+2
+    '1020', '1050', '1080', '1110', '1140', '1170', '1200', '1230',
+    '1260', '1290', '1320', '1350', '1380', '1410', '1440']  # Range: 17:00 GMT+2 -> 00:00 GMT+2 Interval: 00:30
 
 # Embed's for the activity check
 PLAYERS_EMBED = [DiscordEmbed(title="Активні гравці", color='ff0000', url=CLAN_URL),

@@ -4,7 +4,7 @@ import schedule
 import timeit
 
 from config import WEBHOOK_PLAYERS, PLAYERS_EMBED, DAY_START_EMBEDS, WEBHOOK_DAY, \
-    DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME
+    DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS
 from player import parsing_players
 from squadron import parsing_squadrons
 from database import create_databases
@@ -33,7 +33,7 @@ def parsing_squadrons_thread():
     Thread(
         target=parsing_squadrons,
         args=[WEBHOOK_SQUADRONS, "squadrons",
-              *DAY_START_EMBEDS]).start()
+              *SQUAD_EMBEDS]).start()
 
 
 def time_checker():
