@@ -8,7 +8,7 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 from selenium import webdriver
 
 from config import WEBHOOK_DAY, DAY_START_EMBEDS, DB_PATH, TRACKED_CLAN_NAME, LB_URLS
-from database import create_databases
+from player import DatabaseUpdate
 
 # Constants
 CSS_SELECTORS = {
@@ -211,7 +211,6 @@ def parsing_squadrons(webhook_url: str, table_name: str,
 
 
 if __name__ == '__main__':
-    # create_databases()
     start = time.time()
     parsing_squadrons(WEBHOOK_DAY, "period_squadrons", *DAY_START_EMBEDS)
     print(time.time() - start)

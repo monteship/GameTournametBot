@@ -6,19 +6,19 @@ from pytz import timezone
 
 from config import WEBHOOK_PLAYERS, PLAYERS_EMBED, DAY_START_EMBEDS, WEBHOOK_DAY, \
     DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS
-from player import parsing_players
+from player import PlayersLeaderboardUpdater, DatabaseUpdate
 from squadron import parsing_squadrons
-from database import create_databases
 from background import keep_alive
 
 
 def parsing_players_thread():
-    Thread(target=parsing_players,
-           args=[WEBHOOK_PLAYERS, 'players', *PLAYERS_EMBED]).start()
+    Thread(target=PlayersLeaderboardUpdater,
+           args=[WEBHOOK_PLAYERS, 'players',
+                 *PLAYERS_EMBED]).start()
 
 
 def parsing_players_partial_thread():
-    Thread(target=parsing_players,
+    Thread(target=PlayersLeaderboardUpdater,
            args=[WEBHOOK_DAY, "period_players",
                  *PLAYERS_EMBED]).start()
 
@@ -68,7 +68,8 @@ def main():
     """
     try:
         keep_alive()
-        create_databases()
+        with DatabaseUpdate() as creator:
+            creator.create_databases()
         schedule.every(60).seconds.do(time_checker)
         while True:
             schedule.run_pending()
