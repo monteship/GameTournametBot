@@ -13,23 +13,20 @@ from squadron import delete_embed
 
 def extract_player_data(element, iteration: int):
     """
-    Iterates through the elements and extracts the player data.
-    :param element:
-    :param iteration:
-    :return:
+    Extracts the player data from a BeautifulSoup element
     """
-    iteration_range = 11 if iteration == 0 else 6
-    iteration_range_2 = [6, 7, 9, 10] if iteration == 0 else [1, 2, 4, 5]
+    i_range = 11 if iteration == 0 else 6
+    i_range_2 = [6, 7, 9, 10] if iteration == 0 else [1, 2, 4, 5]
     player_data = {}
-    for i in range(iteration_range):
+    for i in range(i_range):
         element = element.find_next_sibling()
-        if i == iteration_range_2[0]:
+        if i == i_range_2[0]:
             player_data['name'] = element.text.strip()
-        if i == iteration_range_2[1]:
+        if i == i_range_2[1]:
             player_data['points'] = int(element.text.strip())
-        if i == iteration_range_2[2]:
+        if i == i_range_2[2]:
             player_data['role'] = str(element.text.strip())
-        if i == iteration_range_2[3]:
+        if i == i_range_2[3]:
             player_data['date_join'] = datetime.datetime.strptime(
                 element.text.strip(), '%d.%m.%Y').date()
             return player_data, element
@@ -38,19 +35,13 @@ def extract_player_data(element, iteration: int):
 def get_player_points_change(sql, table_name: str, player_data: dict):
     """
     Check if a player has changed their points
-    :param sql: Sqlite3 connection
-    :param table_name:
-    :param player_data:
-    :return: None
     """
-    changes = {'points': None,
-               'rank': None}
+    changes = {'points': None, 'rank': None}
     rank = 0
     try:
         sql.execute(f"SELECT points, rank FROM {table_name} WHERE name = '{player_data['name']}'")
-        data = sql.fetchall()
-        changes['points'] = data[0][0] - player_data['points']
-        rank = data[0][1]
+        points, rank = sql.fetchone()
+        changes['points'] = points - player_data['points']
     except IndexError:
         try:
             sql.execute(f"SELECT points FROM {table_name} WHERE name = '{player_data['name']}'")
@@ -66,10 +57,6 @@ def get_player_points_change(sql, table_name: str, player_data: dict):
 def delete_player(sql, table_name, player_data: dict):
     """
     Try to delete a player from the database
-    :param sql:
-    :param player_data:
-    :param table_name:
-    :return: None
     """
     try:
         sql.execute(f"DELETE FROM {table_name} WHERE name = '{player_data['name']}'")
@@ -80,11 +67,6 @@ def delete_player(sql, table_name, player_data: dict):
 def insert_player(sql, table_name: str, player_data: dict, rank: int):
     """
     Insert a player into the database
-    :param rank:
-    :param sql:
-    :param table_name:
-    :param player_data:
-    :return: None
     """
     player_data['rank'] = rank
     try:
@@ -98,7 +80,6 @@ def insert_player(sql, table_name: str, player_data: dict, rank: int):
 def format_message(player_data: dict, player_changes: dict):
     """
     Format the message to be sent based on the points change
-    :return: Message to be sent or None
     """
     message = None
     emoji = ['<:small_green_triangle:996827805725753374>',
@@ -113,12 +94,6 @@ def format_message(player_data: dict, player_changes: dict):
 def add_player_to_embed(discord_emb, discord_emb_2, player_data, message, players_discord):
     """
     Applies the given player data changes to the Discord embed
-    :param player_data:
-    :param discord_emb: Discord embed for first message
-    :param discord_emb_2: Discord embed for second message
-    :param message: Message with values
-    :param players_discord: Quantity of players with stat changes
-    :return: None
     """
     if player_data['rank']:
         stencil = f"Місце {player_data['rank']} в полку\n{player_data['name']}"
@@ -129,22 +104,29 @@ def add_player_to_embed(discord_emb, discord_emb_2, player_data, message, player
     discord_emb.add_embed_field(name=stencil, value=message)
 
 
-def parsing_players(webhook_url: str, table_name: str, discord_emb: DiscordEmbed, discord_emb_2: DiscordEmbed):
+def send_message_to_webhook(webhook_url, discord_emb, discord_emb_2, players_discord):
+    """
+    Initiate a message
+    """
+    webhook = DiscordWebhook(url=webhook_url)
+    if players_discord >= 1:
+        webhook.add_embed(discord_emb)
+        webhook.execute(remove_embeds=True)
+    if players_discord >= 25:
+        webhook.add_embed(discord_emb_2)
+        webhook.execute(remove_embeds=True)
+
+
+def parsing_players(webhook_url: str, table_name: str,
+                    discord_emb: DiscordEmbed, discord_emb_2: DiscordEmbed):
     """
     Parses the players from the leaderboard, check stat changes and adds them to the Discord embed.
     Sends the message to the Discord webhook
-    :param webhook_url: Discord webhook url for sending the message to the channel
-    :param table_name:
-    :param discord_emb: Discord embed for first message
-    :param discord_emb_2: Discord embed for second message
-    :return: None
     """
     delete_embed(discord_emb, discord_emb_2)
     personal = []
-    webhook = DiscordWebhook(url=webhook_url)
     players_discord = 0
-    page = requests.get(CLAN_URL, timeout=50)
-    soup = BeautifulSoup(page.text, 'lxml')
+    soup = BeautifulSoup(requests.get(CLAN_URL, timeout=50).text, 'lxml')
     players_count = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
     element = soup.find(class_="squadrons-members__grid-item")
     with sqlite3.connect(DB_PATH) as conn:
@@ -160,16 +142,15 @@ def parsing_players(webhook_url: str, table_name: str, discord_emb: DiscordEmbed
                                         player_data, message, players_discord)
                     players_discord += 1
         conn.commit()
-    if players_discord >= 1:
-        webhook.add_embed(discord_emb)
-        webhook.execute(remove_embeds=True)
-    if players_discord >= 25:
-        webhook.add_embed(discord_emb_2)
-        webhook.execute(remove_embeds=True)
+    send_message_to_webhook(webhook_url, discord_emb, discord_emb_2, players_discord)
     after_run(personal, table_name)
 
 
 def after_run(personal: list, table_name: str):
+    """
+    After executing main function, update the database ranking.
+    Deletes the players from the database if they quit.
+    """
     with sqlite3.connect(DB_PATH) as conn:
         sql = conn.cursor()
         set_ranks(sql, table_name)
@@ -179,9 +160,7 @@ def after_run(personal: list, table_name: str):
 
 def set_ranks(sql, table_name):
     """
-    :param sql:
-    :param table_name:
-    :return:
+    Sets the ranks of the players in the database
     """
     sql.execute(f"""UPDATE {table_name}
                     SET rank = (
@@ -195,10 +174,8 @@ def set_ranks(sql, table_name):
 def person_is_quit(sql, personal: list):
     """
     Parses the players from the leaderboard,
-    check if they are imposter and adds them to the Discord embed
-    :param sql:
-    :param personal:
-    :return:
+    check if they are leave and adds them to the Discord embed
+
     """
     sql.execute(f"SELECT name FROM players")
     sql_personal = [person[0] for person in sql.fetchall()]
@@ -218,6 +195,9 @@ def person_is_quit(sql, personal: list):
 
 
 def quitter_notify(name, points, date):
+    """
+    Informs the Discord webhook about the quitter
+    """
     summary = datetime.datetime.today().date() - datetime.datetime.strptime(date, '%d-%m-%Y').date()
     webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
     webhook.add_embed(DiscordEmbed(
