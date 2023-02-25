@@ -74,10 +74,10 @@ class Player:
         if self.changes['points'] < 0:
             message = f"Очки: {self.points} {emoji[1]} ``({self.changes['points']})``"
         message = message + f"\nМісце {self.new_rank}"
-        if self.changes['rank'] > 0:
-            message = message + f" {emoji[0]} ``(+{self.changes['rank']})``"
         if self.changes['rank'] < 0:
-            message = message + f" {emoji[1]} ``({self.changes['rank']})``"
+            message = message + f" {emoji[0]} ``({self.changes['rank']})``"
+        if self.changes['rank'] > 0:
+            message = message + f" {emoji[1]} ``(+{self.changes['rank']})``"
         return message, title
 
 
@@ -177,6 +177,7 @@ class PlayersLeaderboardUpdater:
         """
         webhook = DiscordWebhook(url=self.webhook_url)
         if self.players_discord >= 1:
+            self.discord_emb[0].set_thumbnail(url="https://warthunder.ru/assets/img/svg/logo-wt.svg")
             webhook.add_embed(self.discord_emb[0])
             webhook.execute(remove_embeds=True)
         if self.players_discord >= 25:
