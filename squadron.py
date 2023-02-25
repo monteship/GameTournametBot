@@ -1,6 +1,4 @@
-import sqlite3
 import time
-from joblib import Parallel, delayed
 
 import requests
 from bs4 import BeautifulSoup
@@ -46,7 +44,6 @@ class Clan:
         self.players_count: int = 0
         self.extract_clan_data()
         self.changes = self.get_squadron_stats_change()
-        print(self.changes)
         self.title = None
         self.message = None
 
@@ -114,18 +111,7 @@ class ClansLeaderboardUpdater:
         self.discord_emb = discord_emb
         self.temp_rank = 0
         self.clans_list = []
-        self.run()
-
-    def run(self):
         self.process_leaderboard_pages()
-        for clan in self.clans_list:
-            with Database(self.table_name) as conn:
-                conn.delete_data(clan.name, self.table_name)
-                conn.insert_clan(clan, self.table_name)
-            if clan.rank < 31:
-                clan.format_message()
-                self.add_clan_to_embed(clan)
-        self.send_message_to_webhook()
 
     def process_leaderboard_pages(self):
         temp_rank = 0
@@ -143,9 +129,18 @@ class ClansLeaderboardUpdater:
                 temp_url = link.get_attribute('href')
                 if temp_url[0:45] == 'https://warthunder.com/en/community/claninfo/':
                     temp_rank += 1
-                    self.clans_list.append(
-                        Clan(temp_rank, temp_url, self.table_name))
+                    self.run_page(temp_rank, temp_url)
+        self.send_message_to_webhook()
         driver.close()
+
+    def run_page(self, rank, url):
+        clan = Clan(rank, url, 'players')
+        with Database(self.table_name) as conn:
+            conn.delete_data(clan.name, self.table_name)
+            conn.insert_clan(clan, self.table_name)
+        if clan.rank < 31:
+            clan.format_message()
+            self.add_clan_to_embed(clan)
 
     def add_clan_to_embed(self, clan):
         if 15 < clan.rank < 31:

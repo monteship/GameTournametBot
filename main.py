@@ -25,10 +25,9 @@ def parsing_players_partial_thread():
 
 
 def parsing_squadrons_day_start_thread():
-    Thread(
-        target=ClansLeaderboardUpdater,
-        args=[WEBHOOK_DAY, "period_squadrons",
-              DAY_START_EMBEDS]).start()
+    Thread(target=ClansLeaderboardUpdater,
+           args=[WEBHOOK_DAY, "period_squadrons",
+                 DAY_START_EMBEDS]).start()
 
 
 def parsing_squadrons_day_end_thread():
@@ -38,10 +37,9 @@ def parsing_squadrons_day_end_thread():
 
 
 def parsing_squadrons_thread():
-    Thread(
-        target=ClansLeaderboardUpdater,
-        args=[WEBHOOK_SQUADRONS, "squadrons",
-              SQUAD_EMBEDS]).start()
+    Thread(target=ClansLeaderboardUpdater,
+           args=[WEBHOOK_SQUADRONS, "squadrons",
+                 SQUAD_EMBEDS]).start()
 
 
 def time_checker():

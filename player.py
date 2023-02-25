@@ -1,7 +1,6 @@
 import datetime
 import time
 
-import sqlite3
 from typing import Optional
 import requests
 from bs4 import BeautifulSoup
@@ -58,7 +57,6 @@ class Player:
             query_data = conn.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
             rank_data = query_data[0][0]
-            print(rank_data)
             if rank_data is not None:
                 self.new_rank = int(rank_data)
                 self.changes['rank'] = self.new_rank - self.old_rank
@@ -202,7 +200,12 @@ def quitter_inform(quitter_data: tuple[str, int, datetime]):
 
 
 if __name__ == '__main__':
+    test_player = Player('test', 100, 'test',
+                         datetime.datetime.today().date(), 'players')
     with Database('players') as test_conn:
+        test_conn.insert_player(test_player, 'players')
+        test_conn.execute(
+            f"SELECT points FROM players WHERE name = '{test_player.name}'")
         NICKS = ['Spiox_', 'monteship', 'imeLman', 'YKPAiHA_172', 'SilverWINNER_UA', 'LuntikGG', 'PromiteUA',
                  'ROBOKRABE']
         for count, nick in enumerate(NICKS, 15):
