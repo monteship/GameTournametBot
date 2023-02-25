@@ -87,6 +87,7 @@ class PlayersLeaderboardUpdater:
         self.webhook_url = webhook_url
         self.table_name = table_name
         self.discord_emb = discord_emb
+        self.delete_embed()
         self.personal = []
         self.players_data = []  # All players object's
         self.players_discord = 0
@@ -98,7 +99,7 @@ class PlayersLeaderboardUpdater:
         """
         Run the leaderboard updater.
         """
-        self.delete_embed()
+
         players_count = self.process_page()
         for iteration in range(0, players_count):
             self.extract_player_data(iteration)  # Make instance of players
