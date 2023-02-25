@@ -30,42 +30,40 @@ class Player:
 
     def get_rank(self) -> int | None:
         with Database(self.table_name) as conn:
+            query_data = conn.query(
+                f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
             try:
-                conn.cursor.execute(
-                    f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
-                rank_data = conn.cursor.fetchone()[0]
-                if rank_data is not None:
-                    return int(rank_data)
-                return 0
-            except TypeError:
-                return 150
+                return query_data[0][0]
+            except:
+                return None
 
     def get_points_changes(self) -> None:
         """
         Get the points change for the player.
         """
         with Database(self.table_name) as conn:
-            conn.cursor.execute(
-                f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
-            points_data = conn.cursor.fetchone()[0]
-            if points_data is not None:
+            try:
+                query_data = conn.query(
+                    f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
+                points_data = query_data[0][0]
                 self.changes['points'] = self.points - points_data
-            else:
-                self.changes['points'] = 0
+            except:
+                self.changes = None
 
     def get_rank_changes(self):
         """
         Get the change in rank for the player.
         """
         with Database(self.table_name) as conn:
-            conn.cursor.execute(
-                f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
-            rank_data = conn.cursor.fetchone()[0]
+            query_data = conn.query(
+                f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
+            rank_data = query_data[0][0]
+            print(rank_data)
             if rank_data is not None:
                 self.new_rank = int(rank_data)
                 self.changes['rank'] = self.new_rank - self.old_rank
             else:
-                self.new_rank = 0
+                pass
 
     def format_changes(self):
         """
@@ -109,11 +107,13 @@ class PlayersLeaderboardUpdater:
         with Database(self.table_name) as conn:
             for player in self.players_data:
                 player.get_points_changes()  # Points change
-                conn.update_player(player)  # Update database
-            conn.set_ranks()  # Set ranks
+                conn.delete_data(player.name, self.table_name)  # Update database
+                conn.commit()
+                conn.insert_player(player, self.table_name)
+            conn.set_ranks(self.table_name)  # Set ranks
             for player in self.players_data:
-                player.get_rank_changes()  # Get new rank
                 if player.changes['points'] != 0:
+                    player.get_rank_changes()  # Get new rank
                     message, title = player.format_changes()
                     self.add_player_to_embed(title, message)
                     self.players_discord += 1
@@ -202,15 +202,14 @@ def quitter_inform(quitter_data: tuple[str, int, datetime]):
 
 
 if __name__ == '__main__':
-    start_time = time.time()
-    test_player = Player('test', 100, 'test', datetime.datetime.today().date(), 'players')
     with Database('players') as test_conn:
-        test_conn.insert_player(test_player)
-        test_conn.cursor.execute(f"SELECT points FROM players WHERE name = '{test_player.name}'")
         NICKS = ['Spiox_', 'monteship', 'imeLman', 'YKPAiHA_172', 'SilverWINNER_UA', 'LuntikGG', 'PromiteUA',
                  'ROBOKRABE']
         for count, nick in enumerate(NICKS, 15):
-            test_conn.cursor.execute("UPDATE players SET points = ?, rank =? WHERE name = ?",
-                                     (1200, count, nick))
+            test_conn.execute(
+                "UPDATE players SET points = ?, rank =? WHERE name = ?",
+                (1200, count, nick))
+            test_conn.commit()
+    start_time = time.time()
     PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'players', PLAYERS_EMBEDS)
     print("End time: ", time.time() - start_time)

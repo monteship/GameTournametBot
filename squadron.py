@@ -1,14 +1,22 @@
 import sqlite3
 import time
-import timeit
+from joblib import Parallel, delayed
 
 import requests
 from bs4 import BeautifulSoup
 from discord_webhook import DiscordWebhook, DiscordEmbed
 from selenium import webdriver
+from selenium.common import TimeoutException
 
 from config import WEBHOOK_DAY, DAY_START_EMBEDS, DB_PATH, TRACKED_CLAN_NAME, LB_URLS
 from player import Database
+
+# Selenium options
+options = webdriver.ChromeOptions()
+options.add_argument("--headless")
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-logging")
 
 # Constants
 CSS_SELECTORS = {
@@ -26,192 +34,136 @@ CSS_SELECTORS = {
         "div#squadronsInfoRoot div.squadrons-info__content-wrapper > div:nth-child(2)"
 }
 
-# Selenium options
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-logging")
 
+class Clan:
+    def __init__(self, rank: int, clan_url: str, table_name: str):
+        self.rank = rank
+        self.clan_url = clan_url
+        self.table_name = table_name
+        self.name: str = ''
+        self.points: int = 0
+        self.k_d: float = 0.0
+        self.players_count: int = 0
+        self.extract_clan_data()
+        self.changes = self.get_squadron_stats_change()
+        print(self.changes)
+        self.title = None
+        self.message = None
 
-def delete_embed(*elements) -> None:
-    """
-    Delete deprecated embed elements
-    :param elements: List of DiscordEmbed elements
-    :return: None
-    """
-    try:
-        for element in elements:
-            for field in range(0, len(element.get_embed_fields())):
-                element.delete_embed_field(field)
-        return None
-    except IndexError:
-        return None
+    def extract_clan_data(self):
+        page = requests.get(self.clan_url, timeout=10)
+        soup = BeautifulSoup(page.text, 'lxml')
+        name = str(soup.find(class_="squadrons-info__title").text.split('[')[1].split(']')[0])[1:-1]
+        if len(name) == 0:
+            name = soup.find(class_="squadrons-info__title").text.split()[0][2:-2]
+        self.name = name
+        self.points = int(soup.find(class_="squadrons-counter__value").text)
+        killed_air = int(soup.select_one(CSS_SELECTORS['KILL_A']).text)
+        killed_ground = int(soup.select_one(CSS_SELECTORS['KILL_G']).text)
+        kills = killed_air + killed_ground
+        deaths = int(soup.select_one(CSS_SELECTORS['DEATHS']).text)
+        self.k_d = round(float(kills / deaths), 2)
+        self.players_count = int(soup.select_one(CSS_SELECTORS['PLAYERS_COUNT']).text[44:])
 
+    def get_squadron_stats_change(self):
+        with Database(self.table_name) as conn:
+            try:
+                query_data = conn.query(
+                    f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
+                rank_change = self.rank - int(query_data[0][0])
+                query_data = conn.query(
+                    f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
+                points_change = self.points - int(query_data[0][0])
+                query_data = conn.query(
+                    f"SELECT k_d FROM {self.table_name} WHERE name = '{self.name}'")
+                old_k_d = float(query_data[0][0])
+                k_d_change = round(round(float(self.k_d), 2) - old_k_d, 2)
+                query_data = conn.query(
+                    f"SELECT players FROM {self.table_name} WHERE name = '{self.name}'")
+                players_change = self.players_count - int(query_data[0][0])
+                return [rank_change, points_change, k_d_change, players_change]
+            except:
+                return None
 
-def extract_squadron_data(url) -> dict:
-    """
-    Get data from squadron page using CSS selectors
-    :param url: URL of the squadron page
-    :return: Dictionary with squadron data
-    """
-    page = requests.get(url, timeout=10)
-    soup = BeautifulSoup(page.text, 'lxml')
-    name = str(soup.find(class_="squadrons-info__title").text.split('[')[1].split(']')[0])
-    points = int(soup.find(class_="squadrons-counter__value").text)
-    killed_air = int(soup.select_one(CSS_SELECTORS['KILL_A']).text)
-    killed_ground = int(soup.select_one(CSS_SELECTORS['KILL_G']).text)
-    kills = killed_air + killed_ground
-    deaths = int(soup.select_one(CSS_SELECTORS['DEATHS']).text)
-    k_d = round(float(kills / deaths), 2)
-    players_count = int(soup.select_one(CSS_SELECTORS['PLAYERS_COUNT']).text[44:])
-    return {'name': name, 'points': points, 'k_d': k_d, 'players_count': players_count}
+    def format_message(self):
 
-
-def extract_squadron_data_2(url) -> dict:
-    pass
-
-
-def get_squadron_stats_change(sql, table_name: str, squadron_data: dict):
-    """
-    Try to get squadron stats change and return list of changes
-    :param sql: Sqlite3 connection
-    :param table_name: Table name
-    :param squadron_data: Squadron stats
-    :return: List with changes
-    """
-    try:
-        sql.execute(f"SELECT rank FROM {table_name} WHERE name = '{squadron_data['name']}'")
-        rank_place_change = squadron_data['rank_place'] - int(sql.fetchone()[0])
-        sql.execute(f"SELECT points FROM {table_name} WHERE name = '{squadron_data['name']}'")
-        points_change = squadron_data['points'] - int(sql.fetchone()[0])
-        sql.execute(f"SELECT k_d FROM {table_name} WHERE name = '{squadron_data['name']}'")
-        old_k_d = float(sql.fetchone()[0])
-        k_d_change = round(round(float(squadron_data['k_d']), 2) - old_k_d, 2)
-        sql.execute(f"SELECT players FROM {table_name} WHERE name = '{squadron_data['name']}'")
-        players_count_change = squadron_data['players_count'] - int(sql.fetchone()[0])
-        return [rank_place_change, points_change, k_d_change, players_count_change]
-    except TypeError:
-        return None
-
-
-def delete_squadron_data(sql, table_name: str, squadron_data: dict) -> None:
-    """
-    Delete squadron data from database
-    :param sql: Sqlite3 connection
-    :param table_name: Table name
-    :param squadron_data: Squadron stats
-    :return:
-    """
-    try:
-        sql.execute(f"DELETE FROM {table_name} WHERE name = '{squadron_data['name']}'")
-        return None
-    except ValueError:
-        return None
-
-
-def insert_squadron_data(sql, table_name: str, squadron_data: dict):
-    """
-    Insert squadron data to database
-    :param sql: Sqlite3 connection
-    :param table_name: Table name
-    :param squadron_data: Squadron stats
-    :return: None
-    """
-    try:
-        sql.execute(
-            f"INSERT INTO {table_name} (name, rank, points, k_d, players) "
-            "VALUES('{name}', {rank_place}, {points}, {k_d}, {players_count})".format(
-                **squadron_data))
-        return None
-    except ValueError:
-        return None
-
-
-def format_message(squadron_data: dict, squadron_changes: list):
-    """
-    Used to format message based on squadron stat changes
-    :param squadron_data: Squadron stats
-    :param squadron_changes: Squadron stats changes
-    :return: title: message:
-    """
-    test_name = squadron_data['name']
-    data = list(squadron_data.values())
-    emoji = ':star:' if squadron_data['name'] == TRACKED_CLAN_NAME else ':military_helmet: '
-    if squadron_changes is not None:
-        for i in range(0, 4):
-            if squadron_changes[i] > 0:
-                data[i] = f"{data[i]} <:small_green_triangle:996827805725753374> (+{squadron_changes[i]})"
-            elif squadron_changes[i] < 0:
-                data[i] = f"{data[i]} 🔻 ({squadron_changes[i]})"
-    title = f"{emoji} {str(data[-1])}. __{squadron_data['name'][1:-1]}__"
-    message = """
+        msg_data = [self.rank, self.points, self.k_d, self.players_count]
+        emoji = ':star:' if self.name == TRACKED_CLAN_NAME else ':military_helmet: '
+        if self.changes is not None:
+            for i in range(0, 4):
+                if self.changes[i] > 0:
+                    msg_data[i] = \
+                        f"{msg_data[i]} <:small_green_triangle:996827805725753374> (+{self.changes[i]})"
+                elif self.changes[i] < 0:
+                    msg_data[i] = \
+                        f"{msg_data[i]} 🔻 (+{self.changes[i]})"
+        self.title = f"{emoji}  __{self.name}__"
+        self.message = """
+                                        **Місце**: {}
                                         **Очки**: {}
                                         **K\\D**: {}
                                         **Члени**: {}
-                                        """.format(*data[1:-1])
-    return title, message
+                                        """.format(*msg_data)
 
 
-def add_squadron_to_embed(discord_emb, discord_emb_2, title, message, squadron_data: dict):
-    """
-    Adds a new message to DiscordEmbed
-    :param discord_emb: Discord embed for first message
-    :param discord_emb_2: Discord embed for second message
-    :param title: Title for new message
-    :param message: Message for new message
-    :param squadron_data: Squadron stats
-    :return: None
-    """
-    if 15 < squadron_data['rank_place'] < 31:
-        discord_emb_2.add_embed_field(name=title, value=message)
-    else:
-        discord_emb.add_embed_field(name=title, value=message)
+class ClansLeaderboardUpdater:
+    def __init__(self, webhook_url: str, table_name: str,
+                 discord_emb: tuple[DiscordEmbed, DiscordEmbed]):
+        self.webhook_url = webhook_url
+        self.table_name = table_name
+        self.discord_emb = discord_emb
+        self.temp_rank = 0
+        self.clans_list = []
+        self.run()
 
+    def run(self):
+        self.process_leaderboard_pages()
+        for clan in self.clans_list:
+            with Database(self.table_name) as conn:
+                conn.delete_data(clan.name, self.table_name)
+                conn.insert_clan(clan, self.table_name)
+            if clan.rank < 31:
+                clan.format_message()
+                self.add_clan_to_embed(clan)
+        self.send_message_to_webhook()
 
-def parsing_squadrons(webhook_url: str, table_name: str,
-                      discord_emb: DiscordEmbed, discord_emb_2: DiscordEmbed):
-    """
-    Parses the squadrons from the leaderboard, check stat changes and adds them to the Discord embed.
-    Sends the message to the Discord webhook
-    :param webhook_url: Discord webhook URL
-    :param table_name: Table name
-    :param discord_emb: Discord embed for first message
-    :param discord_emb_2: Discord embed for second message
-    :return:
-    """
-    delete_embed(discord_emb, discord_emb_2)
-    webhook = DiscordWebhook(url=webhook_url)
-    discord_emb.set_timestamp()
-    rank_place = 0
-    with webdriver.Chrome(executable_path='chromedriver', options=options) as driver:
+    def process_leaderboard_pages(self):
+        temp_rank = 0
+        driver = webdriver.Chrome(
+            executable_path='chromedriver', options=options)
+        driver.set_page_load_timeout(10)
         for leaderboard_page in LB_URLS:
-            driver.get(leaderboard_page)
+            try:
+                driver.get(leaderboard_page)
+            except TimeoutException:
+                driver.execute_script("window.stop();")
             time.sleep(5)
             links = driver.find_elements('tag name', "a")
             for link in links:
-                clan_url = link.get_attribute('href')
-                if clan_url[0:45] == 'https://warthunder.com/en/community/claninfo/':
-                    rank_place += 1
-                    squadron_data = extract_squadron_data(clan_url)
-                    squadron_data['rank_place'] = rank_place
-                    with sqlite3.connect(DB_PATH) as conn:
-                        sql = conn.cursor()
-                        squadron_changes = get_squadron_stats_change(sql, table_name, squadron_data)
-                        if squadron_changes is not None:
-                            delete_squadron_data(sql, table_name, squadron_data)
-                        insert_squadron_data(sql, table_name, squadron_data)
-                        if squadron_data['rank_place'] < 31:
-                            title, message = format_message(squadron_data, squadron_changes)
-                            add_squadron_to_embed(discord_emb, discord_emb_2, title, message, squadron_data)
-                        conn.commit()
-    webhook.add_embed(discord_emb)
-    webhook.execute(remove_embeds=True)
-    webhook.add_embed(discord_emb_2)
-    webhook.execute(remove_embeds=True)
+                temp_url = link.get_attribute('href')
+                if temp_url[0:45] == 'https://warthunder.com/en/community/claninfo/':
+                    temp_rank += 1
+                    self.clans_list.append(
+                        Clan(temp_rank, temp_url, self.table_name))
+        driver.close()
+
+    def add_clan_to_embed(self, clan):
+        if 15 < clan.rank < 31:
+            self.discord_emb[1].add_embed_field(name=clan.title,
+                                                value=clan.message)
+        else:
+            self.discord_emb[0].add_embed_field(name=clan.title,
+                                                value=clan.message)
+
+    def send_message_to_webhook(self):
+        webhook = DiscordWebhook(url=self.webhook_url)
+        webhook.add_embed(self.discord_emb[0])
+        webhook.execute(remove_embeds=True)
+        webhook.add_embed(self.discord_emb[1])
+        webhook.execute(remove_embeds=True)
 
 
 if __name__ == '__main__':
     start = time.time()
-    parsing_squadrons(WEBHOOK_DAY, "period_squadrons", *DAY_START_EMBEDS)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", DAY_START_EMBEDS)
     print(time.time() - start)

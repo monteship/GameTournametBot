@@ -8,7 +8,7 @@ from config import WEBHOOK_PLAYERS, PLAYERS_EMBEDS, DAY_START_EMBEDS, WEBHOOK_DA
     DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS
 from database import Database
 from player import PlayersLeaderboardUpdater
-from squadron import parsing_squadrons
+from squadron import ClansLeaderboardUpdater
 from background import keep_alive
 
 
@@ -26,22 +26,22 @@ def parsing_players_partial_thread():
 
 def parsing_squadrons_day_start_thread():
     Thread(
-        target=parsing_squadrons,
+        target=ClansLeaderboardUpdater,
         args=[WEBHOOK_DAY, "period_squadrons",
-              *DAY_START_EMBEDS]).start()
+              DAY_START_EMBEDS]).start()
 
 
 def parsing_squadrons_day_end_thread():
-    Thread(target=parsing_squadrons,
+    Thread(target=ClansLeaderboardUpdater,
            args=[WEBHOOK_DAY, "period_squadrons",
-                 *DAY_END_EMBEDS]).start()
+                 DAY_END_EMBEDS]).start()
 
 
 def parsing_squadrons_thread():
     Thread(
-        target=parsing_squadrons,
+        target=ClansLeaderboardUpdater,
         args=[WEBHOOK_SQUADRONS, "squadrons",
-              *SQUAD_EMBEDS]).start()
+              SQUAD_EMBEDS]).start()
 
 
 def time_checker():
@@ -69,8 +69,9 @@ def main():
     """
     try:
         keep_alive()
-        db = Database()
-        db.conn.close()
+        with Database(initialize=True) as conn:
+            conn.create_databases()
+            print("Database created")
         schedule.every(60).seconds.do(time_checker)
         while True:
             schedule.run_pending()

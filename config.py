@@ -15,7 +15,7 @@ LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",
 
 # URL of your clan (crucial: eng version of site)
 CLAN_URL = "https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine"
-TRACKED_CLAN_NAME = '╖SOFUA╖'
+TRACKED_CLAN_NAME = 'SOFUA'
 SQUADRONS_PARSING_TIME = [
     '1020', '1050', '1080', '1110', '1140', '1170', '1200', '1230',
     '1260', '1290', '1320', '1350', '1380', '1410', '1440']  # Range: 17:00 GMT+2 -> 00:00 GMT+2 Interval: 00:30

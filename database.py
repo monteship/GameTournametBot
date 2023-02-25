@@ -11,90 +11,100 @@ class Database:
     player_tables = "players", "period_players"
     squadrons_tables = "squadrons", "period_squadrons"
 
-    def __init__(self, table_name: str = None):
-        self.table_name = table_name
-        self.conn = sqlite3.connect(DB_PATH)
-        self.cursor = self.conn.cursor()
-        if table_name is None:
-            print("Creating tables")
+    def __init__(self, initialize=False):
+        self._conn = sqlite3.connect(DB_PATH)
+        self._cursor = self._conn.cursor()
+        if initialize is True:
             self.create_databases()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.conn.commit()
-        self.conn.close()
+        self.close()
 
-    def set_ranks(self):
+    @property
+    def connection(self):
+        return self._conn
+
+    @property
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.connection.commit()
+
+    def close(self, commit=True):
+        if commit:
+            self.commit()
+        self.connection.close()
+
+    def execute(self, sql, params=None):
+        self.cursor.execute(sql, params or ())
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+    def fetchone(self):
+        return self.cursor.fetchone()
+
+    def query(self, sql, params=None):
+        self.cursor.execute(sql, params or ())
+        return self.fetchall()
+
+    def set_ranks(self, table_name: str):
         """
         Sets the ranks of the players in the database
         """
-        try:
-            self.cursor.execute(f"""UPDATE {self.table_name}
-                            SET rank = (
-                                SELECT COUNT(*) + 1
-                                FROM players p2
-                                WHERE p2.points > {self.table_name}.points
-                                        )
-                            WHERE {self.table_name}.points IS NOT NULL;""")
-        except sqlite3.Error as err:
-            print(f"Error setting ranks: {err}")
-        finally:
-            self.conn.commit()
+        self.execute(f"""UPDATE {table_name}
+                        SET rank = (
+                            SELECT COUNT(*) + 1
+                            FROM players p2
+                            WHERE p2.points > {table_name}.points
+                                    )
+                        WHERE {table_name}.points IS NOT NULL;""")
+        self.commit()
 
-    def delete_player(self, name, table_name=None):
+    def delete_data(self, name, table_name: str):
         """
         Try to delete a player from the database
         """
-        if table_name is None:
-            table_name = self.table_name
-        try:
-            self.cursor.execute(f"DELETE FROM {table_name} WHERE name = '{name}'")
-        except sqlite3.Error as err:
-            print(f"Error deleting player: {err}")
-        finally:
-            self.conn.commit()
+        self.execute(f"DELETE FROM {table_name} WHERE name = '{name}'")
+        self.commit()
 
-    def insert_player(self, player):
+    def insert_player(self, player, table_name: str):
         """
         Insert a player into the database
         """
-        self.cursor.execute(
-            f"INSERT INTO {self.table_name} (name, points, role, date_join) VALUES (?, ?, ?, ?)",
-            (player.name, player.points, player.role, player.date_join))
-        self.conn.commit()
+        self.execute(f"INSERT INTO {table_name} (name, points, role, date_join) VALUES (?, ?, ?, ?)",
+                     (player.name, player.points, player.role, player.date_join))
+        self.commit()
 
-    def update_player(self, player):
+    def insert_clan(self, clan, table_name: str):
         """
-        Update a player in the database
+        Insert a clan into the database
         """
-        try:
-            self.delete_player(player.name)
-        except sqlite3.Error:
-            pass
-        finally:
-            self.insert_player(player)
-        self.conn.commit()
+        self.execute(f"INSERT INTO {table_name} (name, rank, points, k_d, players) VALUES(?, ?, ?, ?, ?)",
+                     (clan.name, clan.rank, clan.points, clan.k_d, clan.players_count))
+        self.commit()
 
     def check_quit(self, personal) -> tuple[str, int, datetime] | None:
         """
         Parses the players from the leaderboard,
         checks if they left and adds them to the Discord embed
         """
-        self.cursor.execute("SELECT name FROM players")
-        db_personal = [person[0] for person in self.cursor.fetchall()]
+        self.execute("SELECT name FROM players")
+        query_data = self.fetchone()
+        db_personal = [person for person in query_data]
         quit_persons = set(db_personal) - set(personal)
         if quit_persons:
             for person in quit_persons:
-
-                self.cursor.execute(
+                query_data = self.query(
                     f"SELECT name, points, date_join FROM players WHERE name = '{person}'")
                 try:
-                    name, points, date = self.cursor.fetchall()[0]
-                    print(name, points, date)
+                    name, points, date = query_data[0]
                     for table in self.player_tables:
-                        self.delete_player(person, table)
+                        self.delete_data(person, table)
                     return name, points, date
                 except sqlite3.Error:
                     return None
@@ -105,7 +115,7 @@ class Database:
         Creates the database if it doesn't exist
         """
         for table_name in self.player_tables:
-            self.cursor.execute(
+            self.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {table_name} 
                 (
@@ -117,7 +127,7 @@ class Database:
                 )
                 ''')
         for table_name in self.squadrons_tables:
-            self.cursor.execute(
+            self.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {table_name} 
                 (
@@ -128,6 +138,3 @@ class Database:
                     "players" INTEGER
                 )
                 ''')
-
-        self.conn.commit()
-        self.conn.close()
