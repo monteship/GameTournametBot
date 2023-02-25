@@ -8,7 +8,7 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 from selenium import webdriver
 
 from config import WEBHOOK_DAY, DAY_START_EMBEDS, DB_PATH, TRACKED_CLAN_NAME, LB_URLS
-from player import DatabaseUpdate
+from player import Database
 
 # Constants
 CSS_SELECTORS = {
@@ -135,6 +135,7 @@ def format_message(squadron_data: dict, squadron_changes: list):
     :param squadron_changes: Squadron stats changes
     :return: title: message:
     """
+    test_name = squadron_data['name']
     data = list(squadron_data.values())
     emoji = ':star:' if squadron_data['name'] == TRACKED_CLAN_NAME else ':military_helmet: '
     if squadron_changes is not None:

@@ -4,9 +4,10 @@ import time
 import schedule
 from pytz import timezone
 
-from config import WEBHOOK_PLAYERS, PLAYERS_EMBED, DAY_START_EMBEDS, WEBHOOK_DAY, \
+from config import WEBHOOK_PLAYERS, PLAYERS_EMBEDS, DAY_START_EMBEDS, WEBHOOK_DAY, \
     DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS
-from player import PlayersLeaderboardUpdater, DatabaseUpdate
+from database import Database
+from player import PlayersLeaderboardUpdater
 from squadron import parsing_squadrons
 from background import keep_alive
 
@@ -14,13 +15,13 @@ from background import keep_alive
 def parsing_players_thread():
     Thread(target=PlayersLeaderboardUpdater,
            args=[WEBHOOK_PLAYERS, 'players',
-                 *PLAYERS_EMBED]).start()
+                 PLAYERS_EMBEDS]).start()
 
 
 def parsing_players_partial_thread():
     Thread(target=PlayersLeaderboardUpdater,
            args=[WEBHOOK_DAY, "period_players",
-                 *PLAYERS_EMBED]).start()
+                 PLAYERS_EMBEDS]).start()
 
 
 def parsing_squadrons_day_start_thread():
@@ -68,16 +69,14 @@ def main():
     """
     try:
         keep_alive()
-        with DatabaseUpdate() as creator:
-            creator.create_databases()
+        db = Database()
+        db.conn.close()
         schedule.every(60).seconds.do(time_checker)
         while True:
             schedule.run_pending()
             time.sleep(1)
     except KeyboardInterrupt:
         print("Manually stopped")
-    except Exception as e:
-        print(e)
 
 
 if __name__ == '__main__':
