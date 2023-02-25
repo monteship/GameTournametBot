@@ -26,14 +26,16 @@ class Player:
         self.changes: dict = {'points_change': None, 'role_change': None, 'rank_change': None}
         self.rank: int = 0
 
-    def get_rank(self) -> int:
+    def get_rank(self) -> int | None:
+        #
         with DatabaseUpdate(self.table_name) as getter:
             try:
                 getter.sql.execute(f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
-                data = getter.sql.fetchone()[0]
-                return data
-            except TypeError:
-                return 0
+                rank_data = getter.sql.fetchone()[0]
+                return rank_data
+            except TypeError as err:
+                print(err)
+                return None
 
     def get_stats_changes(self, change) -> str:
         with DatabaseUpdate(self.table_name) as getter:
@@ -41,19 +43,18 @@ class Player:
                 f"SELECT {change} FROM {self.table_name} WHERE name = '{self.name}'")
             if change == 'points':
                 try:
-                    data = getter.sql.fetchone()[0]
-                    self.changes['points_change'] = self.points - data
-                except TypeError as e:
+                    points_data = getter.sql.fetchone()[0]
+                    self.changes['points_change'] = self.points - points_data
+                except TypeError:
                     self.changes['points_change'] = 0
-                    self.old_rank = 0
-            if change == 'role':
-                self.changes['role_change'] = f"{self.role} --> {data[0]}"
+            # if change == 'role':
+            #    self.changes['role_change'] = f"{self.role} --> {data[0]}"
             if change == 'rank':
                 try:
-                    data = getter.sql.fetchone()[0]
-                    self.rank = data
-                    self.changes['rank_change'] = int(data) - int(self.old_rank)
-                except TypeError as e:
+                    self.rank = getter.sql.fetchone()[0]
+                    self.changes['rank_change'] = self.rank - self.old_rank
+                except TypeError:
+                    print("ya tut")
                     self.changes['points_change'] = 0
                     self.rank = 0
 
@@ -62,22 +63,24 @@ class Player:
         Format the message to be sent based on the points change
         """
         message = None
-        title = f"{self.name}\nМісце {self.rank}"
+        title = f"{self.name.center(15, '_')}\nМісце {self.rank}"
         emoji = ['<:small_green_triangle:996827805725753374>',
                  '🔻']
         if change == 'points':
             if self.changes['points_change'] > 0:
-                message = f"**Очки**: {self.points} {emoji[0]} (+{self.changes['points_change']})"
+                message = f"**Очки**: {self.points} {emoji[0]} ``(+{self.changes['points_change']})``"
             if self.changes['points_change'] < 0:
-                message = f"**Очки**: {self.points} {emoji[1]} ({self.changes['points_change']})"
+                message = f"**Очки**: {self.points} {emoji[1]} ``({self.changes['points_change']})``"
             return message
         if change == 'rank':
             try:
                 if self.changes['rank_change'] > 0:
-                    title = f"Місце: {self.rank} {emoji[0]} (+{self.changes['rank_change']})\n{self.name}"
+                    title = f"{self.name.center(15, '_')}\n" \
+                            f"Місце: {self.rank} {emoji[0]} ``(+{self.changes['rank_change']})``"
                 if self.changes['rank_change'] < 0:
-                    title = f"Місце: {self.rank} {emoji[1]} (+{self.changes['rank_change']})\n{self.name}"
-            except TypeError as e:
+                    title = f"{self.name.center(15, '_')}\n" \
+                            f"Місце: {self.rank} {emoji[1]} ``({self.changes['rank_change']})``"
+            except TypeError:
                 self.changes['rank_change'] = 0
             return title
 
@@ -184,7 +187,8 @@ class PlayersLeaderboardUpdater:
                 for person in quit_persons:
                     table_names = 'players', 'period_players'
                     name, points, date = None, None, None
-                    getter.sql.execute(f"SELECT name, points, date_join FROM players WHERE name = '{person}'")
+                    getter.sql.execute(
+                        f"SELECT name, points, date_join FROM players WHERE name = '{person}'")
                     try:
                         name, points, date = getter.sql.fetchall()[0]
                         for table in table_names:
@@ -198,12 +202,12 @@ def quitter_notify(name: str, points: int, date: datetime):
     """
     Informs the Discord webhook about the quitter
     """
-    summary = datetime.datetime.today().date() - datetime.datetime.strptime(date, '%d-%m-%Y').date()
+    summary = datetime.datetime.today().date() - datetime.datetime.strptime(date, '%Y-%m-%d').date()
     webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
     webhook.add_embed(DiscordEmbed(
-        title=f"**{name}**",
-        description=f" \n Покинув нас з очками в кількості: **{points}** \n"
-                    f"Пробув з нами **{str(summary.days)}** дня/днів",
+        title=f"{name}",
+        description=f" \n ```Покинув нас з очками в кількості: {points} \n"
+                    f"Пробув з нами {str(summary.days)} дня/днів```",
         color="000000",
         url=f"https://warthunder.com/en/community/userinfo/?nick={name}"))
     webhook.execute(remove_embeds=True)
@@ -237,6 +241,7 @@ class DatabaseUpdate:
                             WHERE p2.points > {self.table_name}.points
                                     )
                         WHERE {self.table_name}.points IS NOT NULL;""")
+        self.conn.commit()
 
     def delete_player(self, table_name, name):
         """
@@ -246,28 +251,23 @@ class DatabaseUpdate:
             self.sql.execute(f"DELETE FROM {table_name} WHERE name = '{name}'")
         except ValueError:
             pass
+        self.conn.commit()
 
     def insert_player(self, table_name: str, player: Player):
         """
         Insert a player into the database
         """
         self.sql.execute(
-            f"INSERT INTO {table_name} (name, points, role, date_join, rank) VALUES (?, ?, ?, ?, ?)",
-            (player.name, player.points, player.role, player.date_join, player.rank))
+            f"INSERT INTO {table_name} (name, points, role, date_join) VALUES (?, ?, ?, ?)",
+            (player.name, player.points, player.role, player.date_join))
+        self.conn.commit()
 
     def update_player(self, player: Player):
         try:
-            self.sql.execute(
-                "UPDATE players SET points = ?, role = ?, date_join = ? WHERE name = ?",
-                (player.points, player.role, player.date_join, player.name))
-            if player.name == 'KOlS':
-                print('doane')
-        except sqlite3.Error as e:
-            print(e)
-            try:
-                self.delete_player(self.table_name, player.name)
-            except sqlite3.Error:
-                pass
+            self.delete_player(self.table_name, player.name)
+        except sqlite3.Error:
+            pass
+        finally:
             self.insert_player(self.table_name, player)
         self.conn.commit()
 
@@ -311,9 +311,22 @@ class DatabaseUpdate:
             "k_d" INTEGER,
             "players" INTEGER)
             ''')
+        self.conn.commit()
 
 
 if __name__ == '__main__':
     start_time = time.time()
+    test_player = Player('test', 100, 'test', datetime.datetime.today().date(), 'players')
+    with DatabaseUpdate('players') as setter:
+        setter.insert_player('players', test_player)
+        setter.sql.execute(f"SELECT points FROM players WHERE name = '{test_player.name}'")
+        NICKS = ['Spiox_', 'monteship', 'imeLman', 'YKPAiHA_172', 'SilverWINNER_UA', 'LuntikGG', 'PromiteUA',
+                 'ROBOKRABE']
+        for count, nick in enumerate(NICKS, 15):
+            setter.sql.execute("UPDATE players SET points = ?, rank =? WHERE name = ?",
+                               (1200, count, nick))
+        data = setter.sql.fetchall()
+        print(data)
+
     PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'players', *PLAYERS_EMBED)
     print("End time: ", time.time() - start_time)

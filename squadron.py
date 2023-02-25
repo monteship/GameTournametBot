@@ -143,11 +143,11 @@ def format_message(squadron_data: dict, squadron_changes: list):
                 data[i] = f"{data[i]} <:small_green_triangle:996827805725753374> (+{squadron_changes[i]})"
             elif squadron_changes[i] < 0:
                 data[i] = f"{data[i]} 🔻 ({squadron_changes[i]})"
-    title = f"{emoji}{str(data[-1]).ljust(15)} {squadron_data['name']}"
+    title = f"{emoji} {str(data[-1])}. __{squadron_data['name'][1:-1]}__"
     message = """
-                                        **Points**: {}
+                                        **Очки**: {}
                                         **K\\D**: {}
-                                        **Members**: {}
+                                        **Члени**: {}
                                         """.format(*data[1:-1])
     return title, message
 
