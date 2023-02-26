@@ -157,12 +157,13 @@ class PlayersLeaderboardUpdater:
         """
         Clear the embed.
         """
-        try:
-            for element in self.discord_emb:
-                for field in range(0, len(element.get_embed_fields())):
+        for element in self.discord_emb:
+            for field in range(0, len(element.get_embed_fields())):
+                try:
                     element.delete_embed_field(field)
-        except IndexError:
-            pass
+                    element.set_timestamp()
+                except:
+                    pass
 
     def extract_player_data(self, iteration):
         """

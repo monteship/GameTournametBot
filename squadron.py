@@ -48,6 +48,9 @@ class Clan:
         self.message = None
 
     def extract_clan_data(self):
+        """
+        Extract clan data from clan url.
+        """
         page = requests.get(self.clan_url, timeout=10)
         soup = BeautifulSoup(page.text, 'lxml')
         name = str(soup.find(class_="squadrons-info__title").text.split('[')[1].split(']')[0])[1:-1]
@@ -147,12 +150,13 @@ class ClansLeaderboardUpdater:
         """
         Clear the embed.
         """
-        try:
-            for element in self.discord_emb:
-                for field in range(0, len(element.get_embed_fields())):
+        for element in self.discord_emb:
+            for field in range(0, len(element.get_embed_fields())):
+                try:
                     element.delete_embed_field(field)
-        except IndexError:
-            pass
+                    element.set_timestamp()
+                except:
+                    pass
 
     def add_clan_to_embed(self, clan):
         if 15 < clan.rank < 31:

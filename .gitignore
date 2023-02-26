@@ -8,3 +8,7 @@
 /poetry.lock
 /pyproject.toml
 /__pycache__/
+/period_players.sql
+/period_squadrons.sql
+/players.sql
+/squadron.sql
