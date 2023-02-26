@@ -82,11 +82,12 @@ class Player:
                 message = f"Очки: {self.points} {EMOJI['increase']} ``(+{self.changes['points']})``"
             else:
                 message = f"Очки: {self.points} {EMOJI['decrease']} ``({self.changes['points']})``"
+        message = message + f"\nМісце {self.rank}"
         if self.changes['rank'] != 0:
             if self.changes['rank'] < 0:
-                message = message + f"\nМісце {self.rank} {EMOJI['increase']} ``({self.changes['rank']})``"
+                message = message + f" {EMOJI['increase']} ``({self.changes['rank']})``"
             else:
-                message = message + f"\nМісце {self.rank} {EMOJI['decrease']} ``(+{self.changes['rank']})``"
+                message = message + f" {EMOJI['decrease']} ``(+{self.changes['rank']})``"
         return message, title
 
 
