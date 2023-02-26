@@ -97,7 +97,7 @@ class Clan:
                 elif self.changes[i] < 0:
                     msg_data[i] = \
                         f"{msg_data[i]} 🔻 (+{self.changes[i]})"
-        self.title = f"{emoji}  __{self.name}__"
+        self.title = f"{emoji}          __{self.name}__"
         self.message = """
                                         **Місце**: {}
                                         **Очки**: {}
@@ -107,14 +107,20 @@ class Clan:
 
 
 class ClansLeaderboardUpdater:
-    def __init__(self, webhook_url: str, table_name: str,
-                 discord_emb: tuple[DiscordEmbed, DiscordEmbed]):
+    def __init__(self, webhook_url: str, table_name: str):
         self.webhook_url = webhook_url
         self.table_name = table_name
-        self.discord_emb = discord_emb
+        self.additional_embed = None
+        self.embed = self.set_embed()
         self.temp_rank = 0
         self.clans_list = []
         self.process_leaderboard_pages()
+        self.send_message_to_webhook()
+
+    def set_embed(self) -> DiscordEmbed:
+        title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
+        self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
+        return DiscordEmbed(title=title, color='ff0000', url=LB_URLS[0])
 
     def process_leaderboard_pages(self):
         temp_rank = 0
@@ -133,11 +139,10 @@ class ClansLeaderboardUpdater:
                 if temp_url[0:45] == 'https://warthunder.com/en/community/claninfo/':
                     temp_rank += 1
                     self.run_page(temp_rank, temp_url)
-        self.send_message_to_webhook()
         driver.close()
 
     def run_page(self, rank, url):
-        clan = Clan(rank, url, 'players')
+        clan = Clan(rank, url, self.table_name)
         with Database(self.table_name) as conn:
             conn.delete_data(clan.name, self.table_name)
             conn.insert_clan(clan, self.table_name)
@@ -147,22 +152,31 @@ class ClansLeaderboardUpdater:
 
     def add_clan_to_embed(self, clan):
         if 15 < clan.rank < 31:
-            self.discord_emb[1].add_embed_field(name=clan.title,
-                                                value=clan.message)
+            self.additional_embed.add_embed_field(name=clan.title,
+                                                  value=clan.message)
         else:
-            self.discord_emb[0].add_embed_field(name=clan.title,
-                                                value=clan.message)
+            self.embed.add_embed_field(name=clan.title,
+                                       value=clan.message)
 
     def send_message_to_webhook(self):
         webhook = DiscordWebhook(url=self.webhook_url)
         webhook.remove_embeds()
-        webhook.add_embed(self.discord_emb[0])
+        webhook.add_embed(self.embed)
         webhook.execute(remove_embeds=True)
-        webhook.add_embed(self.discord_emb[1])
+        webhook.add_embed(self.additional_embed)
         webhook.execute(remove_embeds=True)
 
 
 if __name__ == '__main__':
+    with Database('squadrons') as test_conn:
+        NICKS = ['SOFUA']
+        for count, nick in enumerate(NICKS, 15):
+            test_conn.execute(
+                "UPDATE squadrons SET points = ?, rank =? WHERE name = ?",
+                (1200, count, nick))
+            test_conn.commit()
+    test_webhook = DiscordWebhook(url=WEBHOOK_DAY)
+    test_webhook.remove_embeds()
     start = time.time()
-    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", DAY_START_EMBEDS)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons")
     print(time.time() - start)

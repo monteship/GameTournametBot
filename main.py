@@ -15,37 +15,32 @@ from background import keep_alive
 
 def parsing_players_thread():
     Thread(target=PlayersLeaderboardUpdater,
-           args=[WEBHOOK_PLAYERS, 'players',
-                 PLAYERS_EMBEDS]).start()
+           args=[WEBHOOK_PLAYERS, 'players']).start()
 
 
 def parsing_players_partial_thread():
     Thread(target=PlayersLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_players",
-                 PLAYERS_EMBEDS]).start()
+           args=[WEBHOOK_DAY, "period_players"]).start()
 
 
 def parsing_squadrons_day_start_thread():
     Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_squadrons",
-                 DAY_START_EMBEDS]).start()
+           args=[WEBHOOK_DAY, "period_squadrons"]).start()
 
 
 def parsing_squadrons_day_end_thread():
     Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_squadrons",
-                 DAY_END_EMBEDS]).start()
+           args=[WEBHOOK_DAY, "period_squadrons"]).start()
 
 
 def parsing_squadrons_thread():
     Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_SQUADRONS, "squadrons",
-                 SQUAD_EMBEDS]).start()
+           args=[WEBHOOK_SQUADRONS, "squadrons"]).start()
 
 
 def clean_webhooks():
-    WEBHOOKS = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
-    for count, webhook_url in enumerate(WEBHOOKS, 1):
+    WEB_HOOKS = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
+    for count, webhook_url in enumerate(WEB_HOOKS, 1):
         webhook = DiscordWebhook(url=webhook_url)
         webhook.remove_embeds()
         print(f"Webhook {count} cleaned!")

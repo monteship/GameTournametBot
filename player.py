@@ -104,7 +104,7 @@ class PlayersLeaderboardUpdater:
         self.run()
 
     def set_embed(self) -> DiscordEmbed:
-        title = "Активні гравці" if self.table_name else "Результати за день"
+        title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
         self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
         return DiscordEmbed(title=title, color='ff0000', url=CLAN_URL)
 
@@ -181,9 +181,11 @@ class PlayersLeaderboardUpdater:
         Add player message to the Discord embed
         """
         if self.players_discord >= 25:
-            self.additional_embed.add_embed_field(name=title, value=message)
+            self.additional_embed.add_embed_field(name=title,
+                                                  value=message)
         else:
-            self.embed.add_embed_field(name=title, value=message)
+            self.embed.add_embed_field(name=title,
+                                       value=message)
 
     def send_message_to_webhook(self):
         """
@@ -233,6 +235,8 @@ if __name__ == '__main__':
     with Database(initialize=True) as test_conn:
         test_conn.create_databases()
         print("Database created")
+    test_webhook = DiscordWebhook(url=WEBHOOK_PLAYERS)
+    test_webhook.remove_embeds()
     start_time = time.time()
     PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players')
     print("End time: ", time.time() - start_time)
