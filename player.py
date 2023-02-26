@@ -1,13 +1,12 @@
 import datetime
 import time
 
-from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 
-from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, PLAYERS_EMBEDS
+from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS
 from database import Database
 
 emoji = ['<:small_green_triangle:996827805725753374>',
@@ -93,23 +92,26 @@ class PlayersLeaderboardUpdater:
     Updater for the players leaderboard
     """
 
-    def __init__(self, webhook_url: str, table_name: str,
-                 discord_emb: tuple[DiscordEmbed, DiscordEmbed]):
+    def __init__(self, webhook_url: str, table_name: str):
         self.webhook_url = webhook_url
         self.table_name = table_name
-        self.discord_emb = discord_emb
-        self.delete_embed()
+        self.additional_embed = None
+        self.embed = self.set_embed()
         self.personal = []
         self.players_data = []  # All players object's
         self.players_discord = 0
         self.element = None
         self.run()
 
+    def set_embed(self) -> DiscordEmbed:
+        title = "Активні гравці" if self.table_name else "Результати за день"
+        self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
+        return DiscordEmbed(title=title, color='ff0000', url=CLAN_URL)
+
     def run(self):
         """
         Run the leaderboard updater.
         """
-
         players_count = self.process_page()
         for iteration in range(0, players_count):
             self.extract_player_data(iteration)  # Make instance of players
@@ -153,18 +155,6 @@ class PlayersLeaderboardUpdater:
             if quitter_data is not None:
                 quitter_inform(quitter_data)
 
-    def delete_embed(self):
-        """
-        Clear the embed.
-        """
-        for element in self.discord_emb:
-            for field in range(0, len(element.get_embed_fields())):
-                try:
-                    element.delete_embed_field(field)
-                    element.set_timestamp()
-                except:
-                    pass
-
     def extract_player_data(self, iteration):
         """
         Extracts the player data from a BeautifulSoup element
@@ -191,19 +181,21 @@ class PlayersLeaderboardUpdater:
         Add player message to the Discord embed
         """
         if self.players_discord >= 25:
-            self.discord_emb[1].add_embed_field(name=title, value=message)
-        self.discord_emb[0].add_embed_field(name=title, value=message)
+            self.additional_embed.add_embed_field(name=title, value=message)
+        else:
+            self.embed.add_embed_field(name=title, value=message)
 
     def send_message_to_webhook(self):
         """
         Send Discord message with added players to the specified webhook URL
         """
         webhook = DiscordWebhook(url=self.webhook_url)
+        webhook.remove_embeds()
         if self.players_discord >= 1:
-            webhook.add_embed(self.discord_emb[0])
+            webhook.add_embed(self.embed)
             webhook.execute(remove_embeds=True)
         if self.players_discord >= 25:
-            webhook.add_embed(self.discord_emb[1])
+            webhook.add_embed(self.additional_embed)
             webhook.execute(remove_embeds=True)
 
 
@@ -224,23 +216,23 @@ def quitter_inform(quitter_data: tuple[str, int, datetime]):
 
 
 if __name__ == '__main__':
-    """test_player = Player('test', 100, 'test',
+    test_player = Player('test', 100, 'test',
                          datetime.datetime.today().date(), 'players')
     with Database('players') as test_conn:
         test_conn.insert_player(test_player, 'players')
         test_conn.execute(
-            f"SELECT points FROM players WHERE name = '{test_player.name}'")
+            f"SELECT points FROM period_players WHERE name = '{test_player.name}'")
         NICKS = ['Spiox_', 'monteship', 'imeLman', 'YKPAiHA_172',
                  'SilverWINNER_UA', 'LuntikGG', 'PromiteUA',
                  'ROBOKRABE']
         for count, nick in enumerate(NICKS, 15):
             test_conn.execute(
-                "UPDATE players SET points = ?, rank =? WHERE name = ?",
+                "UPDATE period_players SET points = ?, rank =? WHERE name = ?",
                 (1200, count, nick))
-            test_conn.commit()"""
+            test_conn.commit()
     with Database(initialize=True) as test_conn:
         test_conn.create_databases()
         print("Database created")
     start_time = time.time()
-    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', PLAYERS_EMBEDS)
+    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players')
     print("End time: ", time.time() - start_time)

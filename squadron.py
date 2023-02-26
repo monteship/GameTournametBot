@@ -112,7 +112,6 @@ class ClansLeaderboardUpdater:
         self.webhook_url = webhook_url
         self.table_name = table_name
         self.discord_emb = discord_emb
-        self.delete_embed()
         self.temp_rank = 0
         self.clans_list = []
         self.process_leaderboard_pages()
@@ -146,18 +145,6 @@ class ClansLeaderboardUpdater:
             clan.format_message()
             self.add_clan_to_embed(clan)
 
-    def delete_embed(self):
-        """
-        Clear the embed.
-        """
-        for element in self.discord_emb:
-            for field in range(0, len(element.get_embed_fields())):
-                try:
-                    element.delete_embed_field(field)
-                    element.set_timestamp()
-                except:
-                    pass
-
     def add_clan_to_embed(self, clan):
         if 15 < clan.rank < 31:
             self.discord_emb[1].add_embed_field(name=clan.title,
@@ -168,6 +155,7 @@ class ClansLeaderboardUpdater:
 
     def send_message_to_webhook(self):
         webhook = DiscordWebhook(url=self.webhook_url)
+        webhook.remove_embeds()
         webhook.add_embed(self.discord_emb[0])
         webhook.execute(remove_embeds=True)
         webhook.add_embed(self.discord_emb[1])

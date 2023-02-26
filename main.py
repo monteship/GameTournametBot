@@ -2,10 +2,11 @@ import datetime
 from threading import Thread
 import time
 import schedule
+from discord_webhook import DiscordWebhook
 from pytz import timezone
 
 from config import WEBHOOK_PLAYERS, PLAYERS_EMBEDS, DAY_START_EMBEDS, WEBHOOK_DAY, \
-    DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS
+    DAY_START_EMBEDS, DAY_END_EMBEDS, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, SQUAD_EMBEDS, WEBHOOK_ABANDONED
 from database import Database
 from player import PlayersLeaderboardUpdater
 from squadron import ClansLeaderboardUpdater
@@ -42,6 +43,14 @@ def parsing_squadrons_thread():
                  SQUAD_EMBEDS]).start()
 
 
+def clean_webhooks():
+    WEBHOOKS = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
+    for count, webhook_url in enumerate(WEBHOOKS, 1):
+        webhook = DiscordWebhook(url=webhook_url)
+        webhook.remove_embeds()
+        print(f"Webhook {count} cleaned!")
+
+
 def time_checker():
     """
     Build time constant, check if it's time to start parsing
@@ -73,9 +82,10 @@ def main():
         with Database(initialize=True) as conn:
             conn.create_databases()
             print("Database created")
-        parsing_squadrons_thread()
+        """parsing_squadrons_thread()
         parsing_squadrons_day_start_thread()
-        parsing_players_partial_thread()
+        parsing_players_partial_thread()"""
+        clean_webhooks()
         schedule.every(60).seconds.do(time_checker)
         while True:
             schedule.run_pending()
