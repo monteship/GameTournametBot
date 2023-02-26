@@ -44,8 +44,6 @@ class Clan:
         self.players_count: int = 0
         self.extract_clan_data()
         self.changes = self.get_squadron_stats_change()
-        self.title = None
-        self.message = None
 
     def extract_clan_data(self):
         """
@@ -97,13 +95,14 @@ class Clan:
                 elif self.changes[i] < 0:
                     msg_data[i] = \
                         f"{msg_data[i]} 🔻 (+{self.changes[i]})"
-        self.title = f"{emoji}          __{self.name}__"
-        self.message = """
+        title = f"{emoji}          __{self.name}__"
+        message = """
                                         **Місце**: {}
                                         **Очки**: {}
                                         **K\\D**: {}
                                         **Члени**: {}
                                         """.format(*msg_data)
+        return message, title
 
 
 class ClansLeaderboardUpdater:
@@ -147,16 +146,16 @@ class ClansLeaderboardUpdater:
             conn.delete_data(clan.name, self.table_name)
             conn.insert_clan(clan, self.table_name)
         if clan.rank < 31:
-            clan.format_message()
-            self.add_clan_to_embed(clan)
+            message, title = clan.format_message()
+            self.add_clan_to_embed(message, title, clan.rank)
 
-    def add_clan_to_embed(self, clan):
-        if 15 < clan.rank < 31:
-            self.additional_embed.add_embed_field(name=clan.title,
-                                                  value=clan.message)
+    def add_clan_to_embed(self, message, title, rank):
+        if 15 < rank < 31:
+            self.additional_embed.add_embed_field(name=title,
+                                                  value=message)
         else:
-            self.embed.add_embed_field(name=clan.title,
-                                       value=clan.message)
+            self.embed.add_embed_field(name=title,
+                                       value=message)
 
     def send_message_to_webhook(self):
         webhook = DiscordWebhook(url=self.webhook_url)
