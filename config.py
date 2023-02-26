@@ -37,4 +37,4 @@ DAY_END_EMBEDS = [DiscordEmbed(title="Результати (End)", color="ff0000
 ABANDONED_EMBEDS = [DiscordEmbed(title="Втрати на полі бою", color="ff0000", url=LB_URLS[0]), ]
 
 # SQL Server Settings
-DB_PATH = "WTDB.db"
+DB_PATH = "WTDB.sqlite"

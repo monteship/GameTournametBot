@@ -95,19 +95,20 @@ class Database:
         """
         self.execute("SELECT name FROM players")
         query_data = self.fetchone()
-        db_personal = [person for person in query_data]
-        quit_persons = set(db_personal) - set(personal)
-        if quit_persons:
-            for person in quit_persons:
-                query_data = self.query(
-                    f"SELECT name, points, date_join FROM players WHERE name = '{person}'")
-                try:
-                    name, points, date = query_data[0]
-                    for table in self.player_tables:
-                        self.delete_data(person, table)
-                    return name, points, date
-                except sqlite3.Error:
-                    return None
+        if query_data is not None:
+            db_personal = [person for person in query_data]
+            quit_persons = set(db_personal) - set(personal)
+            if quit_persons:
+                for person in quit_persons:
+                    query_data = self.query(
+                        f"SELECT name, points, date_join FROM players WHERE name = '{person}'")
+                    try:
+                        name, points, date = query_data[0]
+                        for table in self.player_tables:
+                            self.delete_data(person, table)
+                        return name, points, date
+                    except sqlite3.Error:
+                        return None
         return None
 
     def create_databases(self):

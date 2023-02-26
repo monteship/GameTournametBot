@@ -53,11 +53,14 @@ def time_checker():
     print(current_time)
     if current_time in SQUADRONS_PARSING_TIME:
         parsing_squadrons_thread()
-    elif current_time == '960':  # Run at 16:00 GMT+2
+    if current_time == '960':  # Run at 16:00 GMT+2
         parsing_squadrons_day_start_thread()
-    elif current_time in ['1443']:  # Run at 00:05 GMT+2 next day
+    if current_time == '984':  # Run at 16:40 GMT+2
+        parsing_players_partial_thread()
+    if current_time == '1443':  # Run at 00:05 GMT+2 next day
         parsing_squadrons_day_end_thread()
-        # parsing_players_partial_thread()
+    if current_time == '1446':  # Run at 00:10 GMT+2 next day
+        parsing_players_partial_thread()
     parsing_players_thread()  # Run every 1 minute
 
 
@@ -70,6 +73,9 @@ def main():
         with Database(initialize=True) as conn:
             conn.create_databases()
             print("Database created")
+        parsing_squadrons_thread()
+        parsing_squadrons_day_start_thread()
+        parsing_players_partial_thread()
         schedule.every(60).seconds.do(time_checker)
         while True:
             schedule.run_pending()
