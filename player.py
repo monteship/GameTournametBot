@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 
-from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS
+from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, EMOJI, CLAN_LEADER
 from database import Database
 
 emoji = ['<:small_green_triangle:996827805725753374>',
@@ -74,16 +74,19 @@ class Player:
         Format the message to be sent based on the points change
         """
         message = None
-        title = f"{self.name.center(15, '_')}"
-        if self.changes['points'] > 0:
-            message = f"Очки: {self.points} {emoji[0]} ``(+{self.changes['points']})``"
-        if self.changes['points'] < 0:
-            message = f"Очки: {self.points} {emoji[1]} ``({self.changes['points']})``"
-        message = message + f"\nМісце {self.rank}"
-        if self.changes['rank'] < 0:
-            message = message + f" {emoji[0]} ``({self.changes['rank']})``"
-        if self.changes['rank'] > 0:
-            message = message + f" {emoji[1]} ``(+{self.changes['rank']})``"
+        title = f"__{self.name}__"
+        if self.name == CLAN_LEADER:
+            title = f"{EMOJI['track_clan']} {self.name}"
+        if self.changes['points'] != 0:
+            if self.changes['points'] > 0:
+                message = f"Очки: {self.points} {EMOJI['increase']} ``(+{self.changes['points']})``"
+            else:
+                message = f"Очки: {self.points} {EMOJI['decrease']} ``({self.changes['points']})``"
+        if self.changes['rank'] != 0:
+            if self.changes['rank'] < 0:
+                message = message + f"\nМісце {self.rank} {EMOJI['increase']} ``({self.changes['rank']})``"
+            else:
+                message = message + f"\nМісце {self.rank} {EMOJI['decrease']} ``(+{self.changes['rank']})``"
         return message, title
 
 
@@ -104,6 +107,9 @@ class PlayersLeaderboardUpdater:
         self.run()
 
     def set_embed(self) -> DiscordEmbed:
+        """
+        Set embed based on table name.
+        """
         title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
         self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
         return DiscordEmbed(title=title, color='ff0000', url=CLAN_URL)
@@ -136,7 +142,6 @@ class PlayersLeaderboardUpdater:
     def process_page(self):
         """
         Beautiful soup parser for the clan page.
-        :return:
         """
         page = requests.get(CLAN_URL, timeout=50)
         soup = BeautifulSoup(page.text, 'lxml')

@@ -6,7 +6,7 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 from selenium import webdriver
 from selenium.common import TimeoutException
 
-from config import WEBHOOK_DAY, DAY_START_EMBEDS, DB_PATH, TRACKED_CLAN_NAME, LB_URLS
+from config import WEBHOOK_DAY, TRACKED_CLAN_NAME, LB_URLS, EMOJI
 from player import Database
 
 # Selenium options
@@ -34,6 +34,12 @@ CSS_SELECTORS = {
 
 
 class Clan:
+    """
+    Used to represent a Clan.
+    Process data from the Clan page.
+    Fetch changes from database
+    """
+
     def __init__(self, rank: int, clan_url: str, table_name: str):
         self.rank = rank
         self.clan_url = clan_url
@@ -64,11 +70,14 @@ class Clan:
         self.players_count = int(soup.select_one(CSS_SELECTORS['PLAYERS_COUNT']).text[44:])
 
     def get_squadron_stats_change(self):
+        """
+        Fetch changes from database.
+        """
         with Database(self.table_name) as conn:
             try:
                 query_data = conn.query(
                     f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
-                rank_change = self.rank - int(query_data[0][0])
+                rank_change = int(query_data[0][0]) - self.rank
                 query_data = conn.query(
                     f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
                 points_change = self.points - int(query_data[0][0])
@@ -84,17 +93,17 @@ class Clan:
                 return None
 
     def format_message(self):
-
+        """
+        Format message to send to Discord.
+        """
         msg_data = [self.rank, self.points, self.k_d, self.players_count]
-        emoji = ':star:' if self.name == TRACKED_CLAN_NAME else ':military_helmet: '
+        emoji = EMOJI['track_clan'] if self.name == TRACKED_CLAN_NAME else EMOJI['all_clans']
         if self.changes is not None:
             for i in range(0, 4):
                 if self.changes[i] > 0:
-                    msg_data[i] = \
-                        f"{msg_data[i]} <:small_green_triangle:996827805725753374> (+{self.changes[i]})"
+                    msg_data[i] = f"{msg_data[i]} {EMOJI['increase']} (+{self.changes[i]})"
                 elif self.changes[i] < 0:
-                    msg_data[i] = \
-                        f"{msg_data[i]} 🔻 (+{self.changes[i]})"
+                    msg_data[i] = f"{msg_data[i]} {EMOJI['decrease']} ({self.changes[i]})"
         title = f"{emoji}          __{self.name}__"
         message = """
                                         **Місце**: {}
@@ -106,6 +115,10 @@ class Clan:
 
 
 class ClansLeaderboardUpdater:
+    """
+    Class used to update Clans Leaderboard.
+    """
+
     def __init__(self, webhook_url: str, table_name: str):
         self.webhook_url = webhook_url
         self.table_name = table_name
@@ -117,11 +130,17 @@ class ClansLeaderboardUpdater:
         self.send_message_to_webhook()
 
     def set_embed(self) -> DiscordEmbed:
+        """
+        Set embed based on table name.
+        """
         title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
         self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
         return DiscordEmbed(title=title, color='ff0000', url=LB_URLS[0])
 
     def process_leaderboard_pages(self):
+        """
+        Extract links from leaderboard pages.
+        """
         temp_rank = 0
         driver = webdriver.Chrome(
             executable_path='chromedriver', options=options)
@@ -137,10 +156,14 @@ class ClansLeaderboardUpdater:
                 temp_url = link.get_attribute('href')
                 if temp_url[0:45] == 'https://warthunder.com/en/community/claninfo/':
                     temp_rank += 1
-                    self.run_page(temp_rank, temp_url)
+                    self.process_clan(temp_rank, temp_url)
         driver.close()
 
-    def run_page(self, rank, url):
+    def process_clan(self, rank, url):
+        """
+        Process clan's page.
+        Update database
+        """
         clan = Clan(rank, url, self.table_name)
         with Database(self.table_name) as conn:
             conn.delete_data(clan.name, self.table_name)
@@ -150,6 +173,9 @@ class ClansLeaderboardUpdater:
             self.add_clan_to_embed(message, title, clan.rank)
 
     def add_clan_to_embed(self, message, title, rank):
+        """
+        Add message and title to embed.
+        """
         if 15 < rank < 31:
             self.additional_embed.add_embed_field(name=title,
                                                   value=message)
@@ -158,6 +184,9 @@ class ClansLeaderboardUpdater:
                                        value=message)
 
     def send_message_to_webhook(self):
+        """
+        Send message to Discord webhook.
+        """
         webhook = DiscordWebhook(url=self.webhook_url)
         webhook.remove_embeds()
         webhook.add_embed(self.embed)

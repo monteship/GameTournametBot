@@ -16,23 +16,15 @@ LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",
 # URL of your clan (crucial: eng version of site)
 CLAN_URL = "https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine"
 TRACKED_CLAN_NAME = 'SOFUA'
+CLAN_LEADER = 'Spiox_'
 SQUADRONS_PARSING_TIME = [
     '1020', '1050', '1080', '1110', '1140', '1170', '1200', '1230',
     '1260', '1290', '1320', '1350', '1380', '1410', '1440']  # Range: 17:00 GMT+2 -> 00:00 GMT+2 Interval: 00:30
 
-# Embed's for the activity check
-PLAYERS_EMBEDS = [DiscordEmbed(title="Активні гравці", color='ff0000', url=CLAN_URL),
-                  DiscordEmbed(title="Активні гравці (2)", color='ff0000', url=CLAN_URL)]
-
-#  Embed's for the squadrons leaderboard
-SQUAD_EMBEDS = [DiscordEmbed(title="Таблиця лідерів", color="ff0000", url=LB_URLS[0]),
-                DiscordEmbed(title="Таблиця лідерів (2)", color="ff0000", url=LB_URLS[1])]
-
-# Embed's for the day notification
-DAY_START_EMBEDS = [DiscordEmbed(title="Результати (Start)", color="ff0000", url=LB_URLS[0]),
-                    DiscordEmbed(title="Результати (Start)", color="ff0000", url=LB_URLS[1])]
-DAY_END_EMBEDS = [DiscordEmbed(title="Результати (End)", color="ff0000", url=LB_URLS[0]),
-                  DiscordEmbed(title="Результати (End)", color="ff0000", url=LB_URLS[1])]
+EMOJI = {'increase': '<:small_green_triangle:996827805725753374>',
+         'decrease': '🔻',
+         'track_clan': ':star:',
+         'all_clans': ':military_helmet:'}
 
 ABANDONED_EMBEDS = [DiscordEmbed(title="Втрати на полі бою", color="ff0000", url=LB_URLS[0]), ]
 
