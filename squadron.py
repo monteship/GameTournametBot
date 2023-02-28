@@ -28,6 +28,7 @@ class ClansLeaderboardUpdater:
         self.initial = initial
         self.embeds = EmbedsBuilder(self.table_name)
         self.process_leaderboard_pages()
+        DiscordWebhookNotification(self.webhook_url, self.embeds)
 
     def process_leaderboard_pages(self):
         """
@@ -58,7 +59,6 @@ class ClansLeaderboardUpdater:
                             return
                         message, title = clan.format_message()
                         self.embeds.add_clan_data(clan, title, message)
-        DiscordWebhookNotification(self.webhook_url, self.embeds)
 
 
 class Clan:
@@ -197,13 +197,10 @@ class ClanDatabase(Database):
     def update_clan_data(self):
         self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{self.clan.name}'")
         if self.fetchone() is None:
-            print('New clan')
             sql_query = f"INSERT INTO {self.table_name} VALUES (?, ?, ?, ?, ?)"
             sql_values = (self.clan.name, self.clan.rank, self.clan.points, self.clan.k_d, self.clan.players)
             self.execute(sql_query, sql_values)
         else:
-            print('Update clan')
-
             sql_query = f'''UPDATE {self.table_name}
                              SET rank = ?,
                                  points = ?,
@@ -216,7 +213,7 @@ class ClanDatabase(Database):
 
 
 class DiscordWebhookNotification:
-    def __init__(self, webhook_url: str, embeds: EmbedsBuilder, active_players=None):
+    def __init__(self, webhook_url: str, embeds: EmbedsBuilder, active_players=25):
         self.active_players = active_players
         self.webhook = DiscordWebhook(url=webhook_url)
         self.webhook.remove_embeds()
@@ -244,5 +241,5 @@ if __name__ == '__main__':
                 (1200, count, nick))
             test_conn.commit()
     start = time.time()
-    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", initial=False)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", initial=True)
     print(time.time() - start)

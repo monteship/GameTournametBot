@@ -1,12 +1,8 @@
 import datetime
 import time
-from sqlite3 import OperationalError
-
 import requests
 from bs4 import BeautifulSoup, NavigableString
-
 from discord_webhook import DiscordEmbed, DiscordWebhook
-
 from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, EMOJI, CLAN_LEADER
 from database import Database
 from squadron import EmbedsBuilder, DiscordWebhookNotification
@@ -97,10 +93,9 @@ class PlayerDatabase(Database):
             self.player.rank = self.get_rank()
 
     def get_rank(self) -> int:
-        query_data = self.query(
-            f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")
         try:
-            return int(query_data[0][0])
+            return int(self.query(
+                f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
         except IndexError:
             return 150
 

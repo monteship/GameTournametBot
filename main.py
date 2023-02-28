@@ -51,9 +51,9 @@ def time_checker():
     print(current_time)
     if current_time in SQUADRONS_PARSING_TIME:
         parsing_squadrons_thread()
-    if current_time == '960':  # Run at 16:00 GMT+2
+    if current_time == '990':  # Run at 16:50 GMT+2
         parsing_squadrons_partial_thread(initial=True)
-    if current_time == '984':  # Run at 16:40 GMT+2
+    if current_time == '996':  # Run at 17:00 GMT+2
         parsing_players_partial_thread(initial=True)
     if current_time == '1443':  # Run at 00:05 GMT+2 next day
         parsing_squadrons_partial_thread()
