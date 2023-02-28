@@ -1,73 +1,31 @@
 import datetime
 import time
+from sqlite3 import OperationalError
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 
 from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, EMOJI, CLAN_LEADER
 from database import Database
-
-emoji = ['<:small_green_triangle:996827805725753374>',
-         '🔻']
+from squadron import EmbedsBuilder, DiscordWebhookNotification
 
 
 class Player:
+    emoji = EMOJI
     """
     Class representing a player
     """
 
     def __init__(self, name: str, points: int, role: str,
-                 date_join: datetime, table_name: str):
+                 date_join: datetime):
         self.name = name
         self.points = points
         self.role = role
         self.date_join = date_join
-        self.table_name = table_name
-        self.rank = self.get_rank()
+        self.rank = None
         self.changes = {'points': 0, 'role': None, 'rank': 0}
-
-    def get_rank(self) -> int:
-        """
-        Fetches the rank of the player
-        """
-        with Database(self.table_name) as conn:
-            query_data = conn.query(
-                f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
-            try:
-                return query_data[0][0]
-            except IndexError:
-                return 150
-
-    def get_points_changes(self) -> None:
-        """
-        Get the points change for the player.
-        """
-        with Database(self.table_name) as conn:
-            try:
-                query_data = conn.query(
-                    f"SELECT points FROM {self.table_name} WHERE name = '{self.name}'")
-                points_data = query_data[0][0]
-                self.changes['points'] = self.points - points_data
-            except IndexError:
-                self.changes = None
-
-    def get_rank_changes(self) -> None:
-        """
-        Get the change in rank for the player.
-        """
-        with Database(self.table_name) as conn:
-            query_data = conn.query(
-                f"SELECT rank FROM {self.table_name} WHERE name = '{self.name}'")
-            try:
-                rank_data = query_data[0][0]
-                if rank_data is not None:
-                    rank = int(rank_data)
-                    self.changes['rank'] = rank - self.rank
-                    self.rank = rank
-            except IndexError:
-                self.changes['rank'] = 0
 
     def format_changes(self):
         """
@@ -76,92 +34,38 @@ class Player:
         message = None
         title = f"__{self.name}__"
         if self.name == CLAN_LEADER:
-            title = f"{EMOJI['track_clan']} {self.name}"
+            title = f"{self.emoji['track_clan']} {self.name}"
         if self.changes['points'] != 0:
             if self.changes['points'] > 0:
-                message = f"Очки: {self.points} {EMOJI['increase']} ``(+{self.changes['points']})``"
+                message = f"Очки: {self.points} {self.emoji['increase']} ``(+{self.changes['points']})``"
             else:
-                message = f"Очки: {self.points} {EMOJI['decrease']} ``({self.changes['points']})``"
+                message = f"Очки: {self.points} {self.emoji['decrease']} ``({self.changes['points']})``"
         message = message + f"\nМісце {self.rank}"
         if self.changes['rank'] != 0:
             if self.changes['rank'] < 0:
-                message = message + f" {EMOJI['increase']} ``({self.changes['rank']})``"
+                message = message + f" {self.emoji['increase']} ``({self.changes['rank']})``"
             else:
-                message = message + f" {EMOJI['decrease']} ``(+{self.changes['rank']})``"
+                message = message + f" {self.emoji['decrease']} ``(+{self.changes['rank']})``"
         return message, title
 
 
-class PlayersLeaderboardUpdater:
-    """
-    Updater for the players leaderboard
-    """
+class ClanPageScraper:
 
-    def __init__(self, webhook_url: str, table_name: str):
-        self.webhook_url = webhook_url
-        self.table_name = table_name
-        self.additional_embed = None
-        self.embed = self.set_embed()
-        self.personal = []
-        self.players_data = []  # All players object's
-        self.players_discord = 0
-        self.element = None
-        self.run()
+    def __init__(self, clan_url: str):
+        self.clan_url = clan_url
+        self.members: int = 0
+        self.element = self.process_clan_page()
+        self.players = []
+        for i in range(0, self.members):
+            self.players.append(self.extract_player_data(i))
 
-    def set_embed(self) -> DiscordEmbed:
-        """
-        Set embed based on table name.
-        """
-        title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
-        self.additional_embed = DiscordEmbed(title=title + ' (Продовження)')
-        return DiscordEmbed(title=title, color='ff0000', url=CLAN_URL)
-
-    def run(self):
-        """
-        Run the leaderboard updater.
-        """
-        players_count = self.process_page()
-        for iteration in range(0, players_count):
-            self.extract_player_data(iteration)  # Make instance of players
-        with Database(self.table_name) as conn:
-            for player in self.players_data:
-                player.get_points_changes()  # Points change
-                conn.delete_data(player.name, self.table_name)  # Update database
-                conn.commit()
-                conn.insert_player(player, self.table_name)
-            conn.set_ranks(self.table_name)  # Set ranks
-            for player in self.players_data:
-                try:
-                    if player.changes['points'] != 0:
-                        player.get_rank_changes()  # Get new rank
-                        message, title = player.format_changes()
-                        self.add_player_to_embed(title, message)
-                        self.players_discord += 1
-                except TypeError:
-                    pass
-        self.finish_process()
-
-    def process_page(self):
-        """
-        Beautiful soup parser for the clan page.
-        """
-        page = requests.get(CLAN_URL, timeout=50)
+    def process_clan_page(self) -> NavigableString:
+        page = requests.get(self.clan_url, timeout=50)
         soup = BeautifulSoup(page.text, 'lxml')
-        count_data = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
-        self.element = soup.find(class_="squadrons-members__grid-item")
-        return count_data
+        self.members = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
+        return soup.find(class_="squadrons-members__grid-item")
 
-    def finish_process(self):
-        """
-        After main process, send the embed.
-        Cleans up database.
-        """
-        self.send_message_to_webhook()
-        with Database(self.table_name) as conn:
-            quitter_data = conn.check_quit(self.personal)
-            if quitter_data is not None:
-                quitter_inform(quitter_data)
-
-    def extract_player_data(self, iteration):
+    def extract_player_data(self, iteration) -> Player:
         """
         Extracts the player data from a BeautifulSoup element
         """
@@ -172,7 +76,6 @@ class PlayersLeaderboardUpdater:
             self.element = self.element.find_next_sibling()
             if i == i_range_2[0]:
                 name = self.element.text.strip()
-                self.personal.append(name)
             if i == i_range_2[1]:
                 points = int(self.element.text.strip())
             if i == i_range_2[2]:
@@ -180,69 +83,173 @@ class PlayersLeaderboardUpdater:
             if i == i_range_2[3]:
                 date_join = datetime.datetime.strptime(
                     self.element.text.strip(), '%d.%m.%Y').date()
-                self.players_data.append(Player(name, points, role, date_join, self.table_name))
+                return Player(name, points, role, date_join)
 
-    def add_player_to_embed(self, title: str, message: str):
-        """
-        Add player message to the Discord embed
-        """
-        if self.players_discord >= 25:
-            self.additional_embed.add_embed_field(name=title,
-                                                  value=message)
+
+class PlayerDatabase(Database):
+    player_tables = "players", "period_players"
+
+    def __init__(self, table_name: str, player: Player = None):
+        super().__init__()
+        self.table_name = table_name
+        if player is not None:
+            self.player = player
+            self.player.rank = self.get_rank()
+
+    def get_rank(self) -> int:
+        query_data = self.query(
+            f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")
+        try:
+            return int(query_data[0][0])
+        except IndexError:
+            return 150
+
+    def retrieve_player_points_changes(self):
+        try:
+            points_change = self.player.points - int(self.query(
+                f"SELECT points FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
+            self.player.changes['points'] = points_change
+        except IndexError:
+            self.player.changes['points'] = 0
+
+    def retrieve_player_rank_changes(self):
+        try:
+            rank_change = self.player.rank - self.query(
+                f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0]
+            self.player.changes['rank'] = rank_change
+        except IndexError:
+            self.player.changes['rank'] = 0
+
+    def update_player_data(self):
+        self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{self.player.name}'")
+        if self.fetchone() is None:
+            sql_query = f"INSERT INTO {self.table_name} VALUES (?, ?, ?, ?, ?)"
+            sql_values = ((self.player.name, self.player.points, self.player.role, self.player.date_join,
+                           self.player.rank))
+            self.execute(sql_query, sql_values)
         else:
-            self.embed.add_embed_field(name=title,
-                                       value=message)
+            sql_query = f'''UPDATE {self.table_name}
+                                         SET points = ?,
+                                             role = ?,
+                                             date_join = ?
+                                         WHERE name = ?'''
+            sql_values = (self.player.points, self.player.role, self.player.date_join, self.player.name)
+            self.execute(sql_query, sql_values)
+            self.commit()
+        self.commit()
 
-    def send_message_to_webhook(self):
+    def update_players_ranks(self):
         """
-        Send Discord message with added players to the specified webhook URL
+        Sets the ranks of the players in the database
         """
-        webhook = DiscordWebhook(url=self.webhook_url)
+        self.execute(f"""UPDATE {self.table_name}
+                        SET rank = (
+                            SELECT COUNT(*) + 1
+                            FROM players p2
+                            WHERE p2.points > {self.table_name}.points
+                                    )
+                        WHERE {self.table_name}.points IS NOT NULL;""")
+        self.commit()
+
+
+class PlayersLeaderboardUpdater:
+    """
+    Updater for the players leaderboard
+    """
+
+    def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
+        self.webhook_url = webhook_url
+        self.table_name = table_name
+        self.embeds = EmbedsBuilder(self.table_name, option=True)
+        self.personal = []
+        self.active_players = 0
+        self.element = None
+        self.run(initial)
+
+    def run(self, initial: bool):
+        """
+        Run the leaderboard updater.
+        """
+        # Get all players instances
+        scraper = ClanPageScraper(CLAN_URL)
+
+        # Get players points changes and update for getting new rank
+        for player in scraper.players:
+            self.personal.append(player.name)
+            with PlayerDatabase(self.table_name, player) as conn:
+                if not initial:
+                    conn.retrieve_player_points_changes()
+                conn.update_player_data()
+
+        # Update the players ranks
+        with PlayerDatabase(self.table_name) as conn:
+            conn.update_players_ranks()
+
+        # Get players rank changes after updating players data
+        for player in scraper.players:
+            if player.changes['points'] == 0:
+                continue
+            with PlayerDatabase(self.table_name, player) as conn:
+                conn.retrieve_player_rank_changes()
+                message, title = player.format_changes()
+                self.active_players += 1
+                self.embeds.add_player_data(self.active_players, title, message)
+
+        # Finish update
+        DiscordWebhookNotification(self.webhook_url, self.embeds, self.active_players)
+        QuitterInformer(self.personal)
+
+
+class QuitterInformer:
+    player_tables = ["players", "period_players"]
+
+    def __init__(self, personal: list):
+        self.personal = personal
+        self.quitters = self.check_quit()
+        if self.quitters is not None:
+            self.quitter_inform()
+
+    def check_quit(self) -> list | None:
+        """
+        Parses the players from the leaderboard,
+        checks if they left and adds them to the Discord embed
+        """
+        quitters_data = []
+        with PlayerDatabase('players') as conn:
+            query_data = conn.query("SELECT name FROM players")
+            db_personal = [person[0] for person in query_data]
+            quit_persons = set(db_personal) - set(self.personal)
+            if not quit_persons:
+                return None
+            for person in quit_persons:
+
+                quitters_data.append(conn.query(
+                    f"SELECT name, points, date_join FROM players WHERE name = '{person}'")[0])
+                for table in self.player_tables:
+                    conn.delete_data(person, table)
+            return quitters_data
+
+    def quitter_inform(self):
+        """
+        Informs the Discord webhook about the quitter
+        """
+        webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
         webhook.remove_embeds()
-        if self.players_discord >= 1:
-            webhook.add_embed(self.embed)
-            webhook.execute(remove_embeds=True)
-        if self.players_discord >= 25:
-            webhook.add_embed(self.additional_embed)
-            webhook.execute(remove_embeds=True)
+        for data in self.quitters:
+            date_join = datetime.datetime.strptime(data[2], '%Y-%m-%d').date()
+            summary = datetime.datetime.today().date() - date_join
+            embed = DiscordEmbed(
+                title=f"{data[0]}",
+                description=f" \n ```Покинув нас з очками в кількості: {data[1]} \n"
+                            f"Пробув з нами {str(summary.days)} дня/днів```",
+                color="000000",
+                url=f"https://warthunder.com/en/community/userinfo/?nick={data[0]}")
 
-
-def quitter_inform(quitter_data: tuple[str, int, datetime]):
-    """
-    Informs the Discord webhook about the quitter
-    """
-    date_join = datetime.datetime.strptime(quitter_data[2], '%Y-%m-%d').date()
-    summary = datetime.datetime.today().date() - date_join
-    webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
-    webhook.add_embed(DiscordEmbed(
-        title=f"{quitter_data[0]}",
-        description=f" \n ```Покинув нас з очками в кількості: {quitter_data[1]} \n"
-                    f"Пробув з нами {str(summary.days)} дня/днів```",
-        color="000000",
-        url=f"https://warthunder.com/en/community/userinfo/?nick={quitter_data[0]}"))
-    webhook.execute(remove_embeds=True)
+            webhook.add_embed(embed)
+            webhook.execute(remove_embeds=True)
 
 
 if __name__ == '__main__':
-    test_player = Player('test', 100, 'test',
-                         datetime.datetime.today().date(), 'players')
-    with Database('players') as test_conn:
-        test_conn.insert_player(test_player, 'players')
-        test_conn.execute(
-            f"SELECT points FROM period_players WHERE name = '{test_player.name}'")
-        NICKS = ['Spiox_', 'monteship', 'imeLman', 'YKPAiHA_172',
-                 'SilverWINNER_UA', 'LuntikGG', 'PromiteUA',
-                 'ROBOKRABE']
-        for count, nick in enumerate(NICKS, 15):
-            test_conn.execute(
-                "UPDATE period_players SET points = ?, rank =? WHERE name = ?",
-                (1200, count, nick))
-            test_conn.commit()
-    with Database(initialize=True) as test_conn:
-        test_conn.create_databases()
-        print("Database created")
-    test_webhook = DiscordWebhook(url=WEBHOOK_PLAYERS)
-    test_webhook.remove_embeds()
     start_time = time.time()
-    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players')
+    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'players')
     print("End time: ", time.time() - start_time)
