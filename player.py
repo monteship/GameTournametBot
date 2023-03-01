@@ -9,10 +9,10 @@ from squadron import EmbedsBuilder, DiscordWebhookNotification
 
 
 class Player:
-    emoji = EMOJI
     """
     Class representing a player
     """
+    emoji = EMOJI
 
     def __init__(self, name: str, points: int, role: str,
                  date_join: datetime):
@@ -23,26 +23,28 @@ class Player:
         self.rank = None
         self.changes = {'points': 0, 'role': None, 'rank': 0}
 
-    def format_changes(self):
+    def get_title(self) -> str:
+        return f"{self.emoji['track_clan']} {self.name}" if self.name in CLAN_LEADER else f"__{self.name}__"
+
+    def get_stats_changes(self) -> str:
         """
         Format the message to be sent based on the points change
         """
-        message = None
-        title = f"__{self.name}__"
-        if self.name == CLAN_LEADER:
-            title = f"{self.emoji['track_clan']} {self.name}"
+        message = ''
         if self.changes['points'] != 0:
             if self.changes['points'] > 0:
-                message = f"Очки: {self.points} {self.emoji['increase']} ``(+{self.changes['points']})``"
+                message = \
+                    f"Очки: {self.points} {self.emoji['increase']} ``(+{self.changes['points']})``"
             else:
-                message = f"Очки: {self.points} {self.emoji['decrease']} ``({self.changes['points']})``"
+                message = \
+                    f"Очки: {self.points} {self.emoji['decrease']} ``({self.changes['points']})``"
         message = message + f"\nМісце {self.rank}"
         if self.changes['rank'] != 0:
             if self.changes['rank'] < 0:
                 message = message + f" {self.emoji['increase']} ``({self.changes['rank']})``"
             else:
                 message = message + f" {self.emoji['decrease']} ``(+{self.changes['rank']})``"
-        return message, title
+        return message
 
 
 class ClanPageScraper:
@@ -155,7 +157,7 @@ class PlayersLeaderboardUpdater:
     def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
         self.webhook_url = webhook_url
         self.table_name = table_name
-        self.embeds = EmbedsBuilder(self.table_name, option=True)
+        self.embeds = EmbedsBuilder(self.table_name)
         self.personal = []
         self.active_players = 0
         self.element = None
@@ -186,9 +188,8 @@ class PlayersLeaderboardUpdater:
                 continue
             with PlayerDatabase(self.table_name, player) as conn:
                 conn.retrieve_player_rank_changes()
-                message, title = player.format_changes()
                 self.active_players += 1
-                self.embeds.add_player_data(self.active_players, title, message)
+                self.embeds.add_player_data(self.active_players, player)
 
         # Finish update
         DiscordWebhookNotification(self.webhook_url, self.embeds, self.active_players)
@@ -196,6 +197,9 @@ class PlayersLeaderboardUpdater:
 
 
 class QuitterInformer:
+    """
+    Class representing the informer for the quitter
+    """
     player_tables = ["players", "period_players"]
 
     def __init__(self, personal: list):
@@ -233,13 +237,12 @@ class QuitterInformer:
         for data in self.quitters:
             date_join = datetime.datetime.strptime(data[2], '%Y-%m-%d').date()
             summary = datetime.datetime.today().date() - date_join
-            embed = DiscordEmbed(
-                title=f"{data[0]}",
-                description=f" \n ```Покинув нас з очками в кількості: {data[1]} \n"
-                            f"Пробув з нами {str(summary.days)} дня/днів```",
-                color="000000",
-                url=f"https://warthunder.com/en/community/userinfo/?nick={data[0]}")
-
+            embed = DiscordEmbed()
+            embed.set_title(f"{data[0]}")
+            embed.set_description(f" \n ```Покинув нас з очками в кількості: {data[1]} \n"
+                                  f"Пробув з нами {str(summary.days)} дня/днів```")
+            embed.set_color("000000")
+            embed.set_url(f"https://warthunder.com/en/community/userinfo/?nick={data[0]}")
             webhook.add_embed(embed)
             webhook.execute(remove_embeds=True)
 

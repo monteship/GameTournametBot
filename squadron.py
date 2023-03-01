@@ -57,8 +57,7 @@ class ClansLeaderboardUpdater:
                         clan_db.update_clan_data()
                         if clan.rank > 30:
                             return
-                        message, title = clan.format_message()
-                        self.embeds.add_clan_data(clan, title, message)
+                        self.embeds.add_clan_data(clan)
 
 
 class Clan:
@@ -77,65 +76,68 @@ class Clan:
         self.players = players
         self.changes = None
 
-    def format_message(self):
+    def get_title(self) -> str:
+        msg_emoji = self.emoji['track_clan'] if self.name == TRACKED_CLAN_NAME else EMOJI['all_clans']
+        return f"{msg_emoji}          __{self.name}__"
+
+    def get_stats_changes(self):
         """
         Format message to send to Discord.
         """
         data = [self.rank, self.points, self.k_d, self.players]
-        emoji = self.emoji['track_clan'] if self.name == TRACKED_CLAN_NAME else EMOJI['all_clans']
         if self.changes is not None:
             for i in range(0, 4):
                 if self.changes[i] > 0:
                     data[i] = f"{data[i]} {self.emoji['increase']} (+{self.changes[i]})"
                 elif self.changes[i] < 0:
                     data[i] = f"{data[i]} {self.emoji['decrease']} ({self.changes[i]})"
-        title = f"{emoji}          __{self.name}__"
         message = f"""
                                         **Місце**: {data[0]}
                                         **Очки**: {data[1]}
                                         **K\\D**: {data[2]}
                                         **Члени**: {data[3]}
                                         """
-        return message, title
+        return message
 
 
 class EmbedsBuilder:
-    def __init__(self, table_name: str, option=False):
-        self.option = option
+    embed_color = 'ff0000'
+
+    def __init__(self, table_name: str):
         self.table_name = table_name
         self.additional_embed = None
-        self.embed = self.set_schema()
+        self.embed = self.set_player_schema() if 'players' in table_name else self.set_clan_schema()
 
-    def set_schema(self):
-        embed_color = 'ff0000'
-        if not self.option:
-            title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
-            self.additional_embed = DiscordEmbed(
-                title=title + ' (Продовження)', color=embed_color, url=LB_URLS[1])
-            return DiscordEmbed(
-                title=title, color=embed_color, url=LB_URLS[0])
-        else:
-            title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
-            self.additional_embed = DiscordEmbed(
-                title=title + ' (Продовження)', color=embed_color, url=CLAN_URL)
-            return DiscordEmbed(
-                title=title, color=embed_color, url=CLAN_URL)
+    def set_player_schema(self):
 
-    def add_clan_data(self, clan: Clan, title: str, message: str):
+        title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
+        self.additional_embed = DiscordEmbed(
+            title=title + ' (Продовження)', color=self.embed_color, url=CLAN_URL)
+        return DiscordEmbed(
+            title=title, color=self.embed_color, url=CLAN_URL)
+
+    def set_clan_schema(self):
+        title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
+        self.additional_embed = DiscordEmbed(
+            title=title + ' (Продовження)', color=self.embed_color, url=LB_URLS[1])
+        return DiscordEmbed(
+            title=title, color=self.embed_color, url=LB_URLS[0])
+
+    def add_clan_data(self, clan: Clan):
         if 15 < clan.rank < 31:
-            self.additional_embed.add_embed_field(name=title,
-                                                  value=message)
+            self.additional_embed.add_embed_field(name=clan.get_title(),
+                                                  value=clan.get_stats_changes())
         else:
-            self.embed.add_embed_field(name=title,
-                                       value=message)
+            self.embed.add_embed_field(name=clan.get_title(),
+                                       value=clan.get_stats_changes())
 
-    def add_player_data(self, active_players: int, title: str, message: str):
+    def add_player_data(self, active_players: int, player):
         if active_players >= 25:
-            self.additional_embed.add_embed_field(name=title,
-                                                  value=message)
+            self.additional_embed.add_embed_field(name=player.get_title(),
+                                                  value=player.get_stats_changes())
         else:
-            self.embed.add_embed_field(name=title,
-                                       value=message)
+            self.embed.add_embed_field(name=player.get_title(),
+                                       value=player.get_stats_changes())
 
 
 class ClanScraper:
