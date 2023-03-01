@@ -1,12 +1,17 @@
 import os
 
-from selenium import webdriver
-
 # URL's for the webhook
-WEBHOOK_PLAYERS = os.environ['WEBHOOK_PLAYERS']
-WEBHOOK_SQUADRONS = os.environ['WEBHOOK_SQUADRONS']
-WEBHOOK_DAY = os.environ['WEBHOOK_DAY']
-WEBHOOK_ABANDONED = os.environ['WEBHOOK_ABANDONED']
+try:
+    WEBHOOK_PLAYERS = os.environ['WEBHOOK_PLAYERS']
+    WEBHOOK_SQUADRONS = os.environ['WEBHOOK_SQUADRONS']
+    WEBHOOK_DAY = os.environ['WEBHOOK_DAY']
+    WEBHOOK_ABANDONED = os.environ['WEBHOOK_ABANDONED']
+except KeyError as err:
+    print(err, 'raise an error. \nYou must set the environment variables in config.py')
+    WEBHOOK_PLAYERS = ''
+    WEBHOOK_SQUADRONS = ''
+    WEBHOOK_DAY = ''
+    WEBHOOK_ABANDONED = ''
 
 # Critical URL's. Don't change these.
 LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",  # First Top 20

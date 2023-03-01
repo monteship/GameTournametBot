@@ -17,49 +17,6 @@ options.add_argument("--no-sandbox")
 options.add_argument("--disable-logging")
 
 
-class ClansLeaderboardUpdater:
-    """
-    Class used to update Clans Leaderboard.
-    """
-
-    def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
-        self.webhook_url = webhook_url
-        self.table_name = table_name
-        self.initial = initial
-        self.embeds = EmbedsBuilder(self.table_name)
-        self.process_leaderboard_pages()
-        DiscordWebhookNotification(self.webhook_url, self.embeds)
-
-    def process_leaderboard_pages(self):
-        """
-        Extract links from leaderboard pages.
-        """
-        rank = 0
-        # Get all clan urls from leaderboard pages
-        with webdriver.Chrome(executable_path='chromedriver', options=options) as driver:
-            driver.set_page_load_timeout(10)
-            for leaderboard_page in LB_URLS:
-                try:
-                    driver.get(leaderboard_page)
-                except TimeoutException:
-                    driver.execute_script("window.stop();")
-                links = driver.find_elements('tag name', "a")
-                for link in links:
-                    url = link.get_attribute('href')
-                    if url[0:45] != 'https://warthunder.com/en/community/claninfo/':
-                        continue
-                    # Process clan page
-                    rank += 1
-                    clan = ClanScraper(url, rank).fetch_clan_data()
-                    with ClanDatabase(self.table_name, clan) as clan_db:
-                        if not self.initial:
-                            clan.changes = clan_db.retrieve_clan_changes()
-                        clan_db.update_clan_data()
-                        if clan.rank > 30:
-                            return
-                        self.embeds.add_clan_data(clan)
-
-
 class Clan:
     """
     Used to represent a Clan.
@@ -98,6 +55,61 @@ class Clan:
                                         **Члени**: {data[3]}
                                         """
         return message
+
+
+class ClansLeaderboardUpdater:
+    """
+    Class used to update Clans Leaderboard.
+    """
+
+    def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
+        self.webhook_url = webhook_url
+        self.table_name = table_name
+        self.initial = initial
+        self.embeds = EmbedsBuilder(self.table_name)
+        self.process_leaderboard_pages()
+        DiscordWebhookNotification(self.webhook_url, self.embeds)
+
+    def process_leaderboard_pages(self):
+        """
+        Extract links from leaderboard pages.
+        """
+        rank = 0
+        # Get all clan urls from leaderboard pages
+        with webdriver.Chrome(executable_path='chromedriver', options=options) as driver:
+            driver.set_page_load_timeout(10)
+            for leaderboard_page in LB_URLS:
+                try:
+                    driver.get(leaderboard_page)
+                except TimeoutException:
+                    driver.execute_script("window.stop();")
+                links = driver.find_elements('tag name', "a")
+                for link in links:
+                    url = link.get_attribute('href')
+                    if url[0:45] != 'https://warthunder.com/en/community/claninfo/':
+                        continue
+                    # Process clan page
+                    rank += 1
+                    clan = ClanScraper(url, rank).fetch_clan()
+                    with ClanDatabase(self.table_name, clan) as clan_db:
+                        if not self.initial:
+                            clan.changes = clan_db.retrieve_clan_changes()
+                        clan_db.update_clan_data()
+                        if clan.rank > 30:
+                            if clan.name == TRACKED_CLAN_NAME:
+                                self.plan_b(clan)
+                            continue
+                        self.embeds.add_clan_data(clan)
+
+    def plan_b(self, clan: Clan):
+        print("init Plan B")
+        webhook = DiscordWebhook(url=self.webhook_url)
+        webhook.remove_embeds()
+        embed = DiscordEmbed(url=CLAN_URL)
+        embed.add_embed_field(name=clan.get_title(),
+                              value=clan.get_stats_changes())
+        webhook.add_embed(embed)
+        webhook.execute(remove_embeds=True)
 
 
 class EmbedsBuilder:
@@ -142,34 +154,41 @@ class EmbedsBuilder:
 
 class ClanScraper:
     CSS = {
-        'KILL_G':
-            "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(3)",
-        'KILL_A':
-            "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(2)",
-        'DEATHS':
-            "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(4)",
-        'PLAYERS_COUNT':
-            "div#squadronsInfoRoot div.squadrons-info__content-wrapper > div:nth-child(2)"
+        'Kill_Ground': "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(3)",
+        'kill_air': "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(2)",
+        'death': "body#bodyRoot div.squadrons-profile__header-stat.squadrons-stat > ul:nth-child(2) > li:nth-child(4)",
+        'players_count': "div#squadronsInfoRoot div.squadrons-info__content-wrapper > div:nth-child(2)"
     }
 
     def __init__(self, url: str, rank: int):
         self.url = url
         self.rank = rank
-        self.soup = BeautifulSoup(
-            requests.get(url, timeout=10).text, "lxml")
+        self.soup = self._get_soup()
 
-    def fetch_clan_data(self) -> Clan:
-        name = str(self.soup.find(
-            class_="squadrons-info__title").text.split('[')[1].split(']')[0])[1:-1]
+    def _get_soup(self) -> BeautifulSoup:
+        response = requests.get(self.url, timeout=10)
+        response.raise_for_status()
+        return BeautifulSoup(response.text, "lxml")
+
+    def _extract_clan_data(self):
+        title = self.soup.find(class_="squadrons-info__title").text
+        name = str(title.split('[')[1].split(']')[0])[1:-1]
         if len(name) == 0:
-            name = self.soup.find(class_="squadrons-info__title").text.split()[0][2:-2]
+            name = title.split()[0][2:-2]
         points = int(self.soup.find(class_="squadrons-counter__value").text)
-        killed_air = int(self.soup.select_one(self.CSS['KILL_A']).text)
-        killed_ground = int(self.soup.select_one(self.CSS['KILL_G']).text)
+        killed_air = int(self.soup.select_one(self.CSS['kill_air']).text)
+        killed_ground = int(self.soup.select_one(self.CSS['Kill_Ground']).text)
         kills = killed_air + killed_ground
-        deaths = int(self.soup.select_one(self.CSS['DEATHS']).text)
-        k_d = round(float(kills / deaths), 2)
-        players = int(self.soup.select_one(self.CSS['PLAYERS_COUNT']).text[44:])
+        deaths = int(self.soup.select_one(self.CSS['death']).text)
+        players = int(self.soup.select_one(self.CSS['players_count']).text.split()[-1])
+        return name, points, kills, deaths, players
+
+    def fetch_clan(self) -> Clan:
+        name, points, kills, deaths, players = self._extract_clan_data()
+        try:
+            k_d = round(float(kills / deaths), 2)
+        except ZeroDivisionError:
+            k_d = 0.0
         return Clan(self.rank, name, points, k_d, players)
 
 
@@ -194,7 +213,7 @@ class ClanDatabase(Database):
                 f"SELECT players FROM {self.table_name} WHERE name = '{self.clan.name}'")[0][0])
             return [rank_change, points_change, k_d_change, players_change]
         except IndexError:
-            return None
+            return [0, 0, 0, 0]
 
     def update_clan_data(self):
         self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{self.clan.name}'")
@@ -243,5 +262,5 @@ if __name__ == '__main__':
                 (1200, count, nick))
             test_conn.commit()
     start = time.time()
-    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", initial=True)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", initial=False)
     print(time.time() - start)
