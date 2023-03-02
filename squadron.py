@@ -67,15 +67,15 @@ class ClansLeaderboardUpdater:
         self.table_name = table_name
         self.initial = initial
         self.embeds = EmbedsBuilder(self.table_name)
+        self.clans = []
         self.process_leaderboard_pages()
-        DiscordWebhookNotification(self.webhook_url, self.embeds)
+        self.process_clan_instances()
 
     def process_leaderboard_pages(self):
         """
         Extract links from leaderboard pages.
         """
         rank = 0
-        # Get all clan urls from leaderboard pages
         with webdriver.Chrome(executable_path='chromedriver', options=options) as driver:
             driver.set_page_load_timeout(10)
             for leaderboard_page in LB_URLS:
@@ -91,15 +91,22 @@ class ClansLeaderboardUpdater:
                     # Process clan page
                     rank += 1
                     clan = ClanScraper(url, rank).fetch_clan()
-                    with ClanDatabase(self.table_name, clan) as clan_db:
-                        if not self.initial:
-                            clan.changes = clan_db.retrieve_clan_changes()
-                        clan_db.update_clan_data()
-                        if clan.rank > 30:
-                            if clan.name == TRACKED_CLAN_NAME:
-                                self.plan_b(clan)
-                            continue
-                        self.embeds.add_clan_data(clan)
+                    self.clans.append(clan)
+
+    def process_clan_instances(self):
+        with ClanDatabase(self.table_name) as conn:
+            for clan in self.clans:
+                if not self.initial:
+                    clan.changes = conn.retrieve_clan_changes(clan)
+                conn.update_clan_data(clan)
+                if clan.rank > 30:
+                    if clan.name == TRACKED_CLAN_NAME:
+                        self.plan_b(clan)
+                    continue
+                self.embeds.add_clan_data(clan)
+
+        # Finish update
+        DiscordWebhookNotification(self.webhook_url, self.embeds)
 
     def plan_b(self, clan: Clan):
         print("init Plan B")
@@ -118,9 +125,13 @@ class EmbedsBuilder:
     def __init__(self, table_name: str):
         self.table_name = table_name
         self.additional_embed = None
-        self.embed = self.set_player_schema() if 'players' in table_name else self.set_clan_schema()
+        self.embed = None
+        if 'players' in table_name:
+            self.embed = self._set_player_schema()
+        else:
+            self.embed = self._set_clan_schema()
 
-    def set_player_schema(self):
+    def _set_player_schema(self):
 
         title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
         self.additional_embed = DiscordEmbed(
@@ -128,7 +139,7 @@ class EmbedsBuilder:
         return DiscordEmbed(
             title=title, color=self.embed_color, url=CLAN_URL)
 
-    def set_clan_schema(self):
+    def _set_clan_schema(self):
         title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
         self.additional_embed = DiscordEmbed(
             title=title + ' (Продовження)', color=self.embed_color, url=LB_URLS[1])
@@ -195,31 +206,30 @@ class ClanScraper:
 class ClanDatabase(Database):
     clan_tables = "squadrons", "period_squadrons"
 
-    def __init__(self, table_name: str, clan: Clan):
+    def __init__(self, table_name: str):
         super().__init__()
         self.table_name = table_name
-        self.clan = clan
 
-    def retrieve_clan_changes(self):
+    def retrieve_clan_changes(self, clan: Clan):
         try:
             rank_change = int(self.query(
-                f"SELECT rank FROM {self.table_name} WHERE name = '{self.clan.name}'")[0][0]) - self.clan.rank
-            points_change = self.clan.points - int(self.query(
-                f"SELECT points FROM {self.table_name} WHERE name = '{self.clan.name}'")[0][0])
+                f"SELECT rank FROM {self.table_name} WHERE name = '{clan.name}'")[0][0]) - clan.rank
+            points_change = clan.points - int(self.query(
+                f"SELECT points FROM {self.table_name} WHERE name = '{clan.name}'")[0][0])
             old_k_d = float(self.query(
-                f"SELECT k_d FROM {self.table_name} WHERE name = '{self.clan.name}'")[0][0])
-            k_d_change = round(round(float(self.clan.k_d), 2) - old_k_d, 2)
-            players_change = self.clan.players - int(self.query(
-                f"SELECT players FROM {self.table_name} WHERE name = '{self.clan.name}'")[0][0])
+                f"SELECT k_d FROM {self.table_name} WHERE name = '{clan.name}'")[0][0])
+            k_d_change = round(round(float(clan.k_d), 2) - old_k_d, 2)
+            players_change = clan.players - int(self.query(
+                f"SELECT players FROM {self.table_name} WHERE name = '{clan.name}'")[0][0])
             return [rank_change, points_change, k_d_change, players_change]
         except IndexError:
-            return [0, 0, 0, 0]
+            return [0, 0, 0.0, 0]
 
-    def update_clan_data(self):
-        self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{self.clan.name}'")
+    def update_clan_data(self, clan: Clan):
+        self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{clan.name}'")
         if self.fetchone() is None:
             sql_query = f"INSERT INTO {self.table_name} VALUES (?, ?, ?, ?, ?)"
-            sql_values = (self.clan.name, self.clan.rank, self.clan.points, self.clan.k_d, self.clan.players)
+            sql_values = (clan.name, clan.rank, clan.points, clan.k_d, clan.players)
             self.execute(sql_query, sql_values)
         else:
             sql_query = f'''UPDATE {self.table_name}
@@ -228,7 +238,7 @@ class ClanDatabase(Database):
                                  k_d = ?,
                                  players = ?
                              WHERE name = ?'''
-            sql_values = self.clan.rank, self.clan.points, self.clan.k_d, self.clan.players, self.clan.name
+            sql_values = clan.rank, clan.points, clan.k_d, clan.players, clan.name
             self.execute(sql_query, sql_values)
         self.commit()
 

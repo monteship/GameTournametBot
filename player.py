@@ -52,18 +52,18 @@ class ClanPageScraper:
     def __init__(self, clan_url: str):
         self.clan_url = clan_url
         self.members: int = 0
-        self.element = self.process_clan_page()
+        self.element = self._process_clan_page()
         self.players = []
         for i in range(0, self.members):
-            self.players.append(self.extract_player_data(i))
+            self.players.append(self._extract_player_data(i))
 
-    def process_clan_page(self) -> NavigableString:
+    def _process_clan_page(self) -> NavigableString:
         page = requests.get(self.clan_url, timeout=50)
         soup = BeautifulSoup(page.text, 'lxml')
         self.members = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
         return soup.find(class_="squadrons-members__grid-item")
 
-    def extract_player_data(self, iteration) -> Player:
+    def _extract_player_data(self, iteration) -> Player:
         """
         Extracts the player data from a BeautifulSoup element
         """
@@ -81,7 +81,7 @@ class ClanPageScraper:
             if i == i_range_2[3]:
                 date_join = datetime.datetime.strptime(
                     self.element.text.strip(), '%d.%m.%Y').date()
-                return Player(name, points, role, date_join)
+        return Player(name, points, role, date_join)
 
 
 class PlayerDatabase(Database):
@@ -98,7 +98,8 @@ class PlayerDatabase(Database):
         try:
             return int(self.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
-        except IndexError:
+        except IndexError as err:
+            print(err, 'line 102')
             return 150
 
     def retrieve_player_points_changes(self):
@@ -106,7 +107,8 @@ class PlayerDatabase(Database):
             points_change = self.player.points - int(self.query(
                 f"SELECT points FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
             self.player.changes['points'] = points_change
-        except IndexError:
+        except IndexError as err:
+            print(err, 'line 110')
             self.player.changes['points'] = 0
 
     def retrieve_player_rank_changes(self):
@@ -114,7 +116,8 @@ class PlayerDatabase(Database):
             rank_change = self.player.rank - self.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0]
             self.player.changes['rank'] = rank_change
-        except IndexError:
+        except IndexError as err:
+            print(err, 'line 118')
             self.player.changes['rank'] = 0
 
     def update_player_data(self):
@@ -161,17 +164,14 @@ class PlayersLeaderboardUpdater:
         self.personal = []
         self.active_players = 0
         self.element = None
-        self.run(initial)
+        self.players = ClanPageScraper(CLAN_URL).players
+        self.process_players(initial)
 
-    def run(self, initial: bool):
+    def process_players(self, initial: bool):
         """
         Run the leaderboard updater.
         """
-        # Get all players instances
-        scraper = ClanPageScraper(CLAN_URL)
-
-        # Get players points changes and update for getting new rank
-        for player in scraper.players:
+        for player in self.players:
             self.personal.append(player.name)
             with PlayerDatabase(self.table_name, player) as conn:
                 if not initial:
@@ -183,7 +183,7 @@ class PlayersLeaderboardUpdater:
             conn.update_players_ranks()
 
         # Get players rank changes after updating players data
-        for player in scraper.players:
+        for player in self.players:
             if player.changes['points'] == 0:
                 continue
             with PlayerDatabase(self.table_name, player) as conn:
@@ -249,5 +249,5 @@ class QuitterInformer:
 
 if __name__ == '__main__':
     start_time = time.time()
-    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'players')
+    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', True)
     print("End time: ", time.time() - start_time)
