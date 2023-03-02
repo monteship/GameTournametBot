@@ -157,7 +157,7 @@ class PlayersLeaderboardUpdater:
     Updater for the players leaderboard
     """
 
-    def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
+    def __init__(self, webhook_url: str, table_name: str, publish: bool):
         self.webhook_url = webhook_url
         self.table_name = table_name
         self.embeds = EmbedsBuilder(self.table_name)
@@ -165,17 +165,16 @@ class PlayersLeaderboardUpdater:
         self.active_players = 0
         self.element = None
         self.players = ClanPageScraper(CLAN_URL).players
-        self.process_players(initial)
+        self.process_players(publish)
 
-    def process_players(self, initial: bool):
+    def process_players(self, publish: bool):
         """
         Run the leaderboard updater.
         """
         for player in self.players:
             self.personal.append(player.name)
             with PlayerDatabase(self.table_name, player) as conn:
-                if not initial:
-                    conn.retrieve_player_points_changes()
+                conn.retrieve_player_points_changes()
                 conn.update_player_data()
 
         # Update the players ranks
@@ -188,8 +187,9 @@ class PlayersLeaderboardUpdater:
                 continue
             with PlayerDatabase(self.table_name, player) as conn:
                 conn.retrieve_player_rank_changes()
-                self.active_players += 1
-                self.embeds.add_player_data(self.active_players, player)
+                if publish:
+                    self.active_players += 1
+                    self.embeds.add_player_data(self.active_players, player)
 
         # Finish update
         DiscordWebhookNotification(self.webhook_url, self.embeds, self.active_players)
@@ -249,5 +249,5 @@ class QuitterInformer:
 
 if __name__ == '__main__':
     start_time = time.time()
-    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', True)
+    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', False)
     print("End time: ", time.time() - start_time)

@@ -22,14 +22,14 @@ def parsing_squadrons_thread():
            args=[WEBHOOK_SQUADRONS, "squadrons"]).start()
 
 
-def parsing_players_partial_thread(initial=False):
+def parsing_players_partial_thread(publish):
     Thread(target=PlayersLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_players", initial]).start()
+           args=[WEBHOOK_DAY, "period_players", publish]).start()
 
 
-def parsing_squadrons_partial_thread(initial=False):
+def parsing_squadrons_partial_thread(publish_changes):
     Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_squadrons", initial]).start()
+           args=[WEBHOOK_DAY, "period_squadrons", publish_changes]).start()
 
 
 def clean_webhooks():
@@ -52,13 +52,13 @@ def time_checker():
     if current_time in SQUADRONS_PARSING_TIME:
         parsing_squadrons_thread()
     if current_time == '990':  # Run at 16:50 GMT+2
-        parsing_squadrons_partial_thread(initial=True)
+        parsing_squadrons_partial_thread(publish_changes=False)
     if current_time == '996':  # Run at 17:00 GMT+2
-        parsing_players_partial_thread(initial=True)
+        parsing_players_partial_thread(publish=False)
     if current_time == '1443':  # Run at 00:05 GMT+2 next day
-        parsing_squadrons_partial_thread()
+        parsing_squadrons_partial_thread(publish_changes=True)
     if current_time == '1446':  # Run at 00:10 GMT+2 next day
-        parsing_players_partial_thread()
+        parsing_players_partial_thread(publish=True)
     parsing_players_thread()  # Run every 1 minute
 
 

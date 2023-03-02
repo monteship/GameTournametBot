@@ -62,14 +62,13 @@ class ClansLeaderboardUpdater:
     Class used to update Clans Leaderboard.
     """
 
-    def __init__(self, webhook_url: str, table_name: str, initial: bool = False):
+    def __init__(self, webhook_url: str, table_name: str, publish_changes: bool):
         self.webhook_url = webhook_url
         self.table_name = table_name
-        self.initial = initial
         self.embeds = EmbedsBuilder(self.table_name)
         self.clans = []
         self.process_leaderboard_pages()
-        self.process_clan_instances()
+        self.process_clan_instances(publish_changes)
 
     def process_leaderboard_pages(self):
         """
@@ -93,11 +92,13 @@ class ClansLeaderboardUpdater:
                     clan = ClanScraper(url, rank).fetch_clan()
                     self.clans.append(clan)
 
-    def process_clan_instances(self):
+    def process_clan_instances(self, publish_changes: bool):
         with ClanDatabase(self.table_name) as conn:
             for clan in self.clans:
-                if not self.initial:
+                if publish_changes:
                     clan.changes = conn.retrieve_clan_changes(clan)
+                else:
+                    clan.changes = None
                 conn.update_clan_data(clan)
                 if clan.rank > 30:
                     if clan.name == TRACKED_CLAN_NAME:
@@ -210,7 +211,7 @@ class ClanDatabase(Database):
         super().__init__()
         self.table_name = table_name
 
-    def retrieve_clan_changes(self, clan: Clan):
+    def retrieve_clan_changes(self, clan: Clan) -> list[int, int, float, int] | None:
         try:
             rank_change = int(self.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{clan.name}'")[0][0]) - clan.rank
@@ -223,7 +224,7 @@ class ClanDatabase(Database):
                 f"SELECT players FROM {self.table_name} WHERE name = '{clan.name}'")[0][0])
             return [rank_change, points_change, k_d_change, players_change]
         except IndexError:
-            return [0, 0, 0.0, 0]
+            return None
 
     def update_clan_data(self, clan: Clan):
         self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{clan.name}'")
@@ -272,5 +273,5 @@ if __name__ == '__main__':
                 (1200, count, nick))
             test_conn.commit()
     start = time.time()
-    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", initial=False)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", False)
     print(time.time() - start)
