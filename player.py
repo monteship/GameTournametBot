@@ -192,6 +192,7 @@ class PlayersLeaderboardUpdater:
                     self.embeds.add_player_data(self.active_players, player)
 
         # Finish update
+        print(f"-----Done updating. Active players:{self.active_players}. Publish:{publish}-----")
         DiscordWebhookNotification(self.webhook_url, self.embeds, self.active_players)
         QuitterInformer(self.personal)
 

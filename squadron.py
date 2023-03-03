@@ -107,6 +107,7 @@ class ClansLeaderboardUpdater:
                 self.embeds.add_clan_data(clan)
 
         # Finish update
+        print(f"-----Done updating. Clans processed:{len(self.clans)}. Publish changes:{publish_changes}-----")
         DiscordWebhookNotification(self.webhook_url, self.embeds)
 
     def plan_b(self, clan: Clan):

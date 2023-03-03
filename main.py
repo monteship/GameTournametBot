@@ -1,84 +1,100 @@
 import datetime
-from threading import Thread
 import time
 import schedule
 from discord_webhook import DiscordWebhook
 from pytz import timezone
 
-from config import WEBHOOK_PLAYERS, WEBHOOK_DAY, WEBHOOK_SQUADRONS, SQUADRONS_PARSING_TIME, WEBHOOK_ABANDONED
+from config import WEBHOOK_PLAYERS, WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_ABANDONED
 from database import Database
 from player import PlayersLeaderboardUpdater
 from squadron import ClansLeaderboardUpdater
 from background import keep_alive
+from concurrent.futures import ThreadPoolExecutor
 
 
-def parsing_players_thread():
-    Thread(target=PlayersLeaderboardUpdater,
-           args=[WEBHOOK_PLAYERS, 'players']).start()
+def time_now():
+    return datetime.datetime.now(timezone('Europe/Kiev')).strftime('%H:%M')
 
 
-def parsing_squadrons_thread():
-    Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_SQUADRONS, "squadrons"]).start()
+class Scheduler:
+    clans_parsing_time = [
+        '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
+        '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00'
+    ]
 
+    def __init__(self):
+        self.schedule = schedule
+        self.schedule.every(1).minutes.do(self.parsing_players_thread, True)
+        self.schedule_daily_jobs()
 
-def parsing_players_partial_thread(publish):
-    Thread(target=PlayersLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_players", publish]).start()
+    def schedule_daily_jobs(self):
+        self.schedule_daily_squadrons_parsing()
+        self.schedule_daily_no_publish_checks()
+        self.schedule_daily_publish_results_checks()
 
+    def schedule_daily_squadrons_parsing(self):
+        for parsing_time in self.clans_parsing_time:
+            self.schedule.every().day.at(parsing_time).do(self.parsing_squadrons_thread, True)
 
-def parsing_squadrons_partial_thread(publish_changes):
-    Thread(target=ClansLeaderboardUpdater,
-           args=[WEBHOOK_DAY, "period_squadrons", publish_changes]).start()
+    def schedule_daily_no_publish_checks(self):
+        self.schedule.every().day.at("16:50").do(
+            self.parsing_squadrons_partial_thread, False
+        )
+        self.schedule.every().day.at("17:00").do(
+            self.parsing_players_partial_thread, False
+        )
 
+    def schedule_daily_publish_results_checks(self):
+        self.schedule.every().day.at("00:15").do(
+            self.parsing_squadrons_partial_thread, True
+        )
+        self.schedule.every().day.at("00:20").do(
+            self.parsing_players_partial_thread, True
+        )
 
-def clean_webhooks():
-    web_hooks = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
-    for count, webhook_url in enumerate(web_hooks, 1):
-        webhook = DiscordWebhook(url=webhook_url)
-        webhook.remove_embeds()
-        print(f"Webhook {count} cleaned!")
+    def start(self):
+        try:
+            print(f"Starting at time {time_now()}")
+            keep_alive()
+            with Database(initialize=True) as conn:
+                conn.create_databases()
+            self.clean_webhooks()
+            while True:
+                self.schedule.run_pending()
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print(f"Manually stopped at time {time_now()}")
 
+    def clean_webhooks(self):
+        web_hooks = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
+        for webhook_url in web_hooks:
+            DiscordWebhook(url=webhook_url).remove_embeds()
 
-def time_checker():
-    """
-    Build time constant, check if it's time to start parsing
-    """
-    kiev_time = datetime.datetime.now(timezone('Europe/Kiev'))
-    hours = kiev_time.hour
-    minutes = kiev_time.minute
-    current_time = str(hours * 60 + minutes)
-    print(current_time)
-    if current_time in SQUADRONS_PARSING_TIME:
-        parsing_squadrons_thread()
-    if current_time == '990':  # Run at 16:50 GMT+2
-        parsing_squadrons_partial_thread(publish_changes=False)
-    if current_time == '996':  # Run at 17:00 GMT+2
-        parsing_players_partial_thread(publish=False)
-    if current_time == '1443':  # Run at 00:05 GMT+2 next day
-        parsing_squadrons_partial_thread(publish_changes=True)
-    if current_time == '1446':  # Run at 00:10 GMT+2 next day
-        parsing_players_partial_thread(publish=True)
-    parsing_players_thread()  # Run every 1 minute
+    def parsing_players_thread(self, publish):
+        print(f"Parsing players at time {time_now()}")
+        with ThreadPoolExecutor() as executor:
+            executor.submit(PlayersLeaderboardUpdater,
+                            WEBHOOK_PLAYERS, 'players', publish)
 
+    def parsing_squadrons_thread(self, publish_changes):
+        print(f"Parsing squadrons at time {time_now()}")
+        with ThreadPoolExecutor() as executor:
+            executor.submit(ClansLeaderboardUpdater,
+                            WEBHOOK_SQUADRONS, "squadrons", publish_changes)
 
-def main():
-    """
-    Main function
-    """
-    try:
-        keep_alive()
-        with Database(initialize=True) as conn:
-            conn.create_databases()
-            print("Database created")
-        clean_webhooks()
-        schedule.every(60).seconds.do(time_checker)
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Manually stopped")
+    def parsing_players_partial_thread(self, publish):
+        print(f"Parsing players partial {publish} at time {time_now()}")
+        with ThreadPoolExecutor() as executor:
+            executor.submit(PlayersLeaderboardUpdater,
+                            WEBHOOK_DAY, "period_players", publish)
+
+    def parsing_squadrons_partial_thread(self, publish_changes):
+        print(f"Parsing squadrons partial {publish_changes} at time {time_now()}")
+        with ThreadPoolExecutor() as executor:
+            executor.submit(ClansLeaderboardUpdater,
+                            WEBHOOK_DAY, "period_squadrons", publish_changes)
 
 
 if __name__ == '__main__':
-    main()
+    scheduler = Scheduler()
+    scheduler.start()
