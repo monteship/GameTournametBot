@@ -1,5 +1,6 @@
 import datetime
 import time
+
 import schedule
 from discord_webhook import DiscordWebhook
 from pytz import timezone
@@ -12,47 +13,72 @@ from background import keep_alive
 from concurrent.futures import ThreadPoolExecutor
 
 
+# All time provided in UTC because of Repl.it uses its own timezone
+
 def time_now():
-    return datetime.datetime.now(timezone('Europe/Kiev')).strftime('%H:%M')
+    """
+    Get current time in Kyiv/Europe
+    :return: Kyiv's time'
+    """
+    return datetime.datetime.now(timezone('Europe/Kyiv')).strftime('%H:%M')
 
 
-class Scheduler:
+class ScheduleUpdater:
     clans_parsing_time = [
-        '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30',
-        '21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '00:00'
+        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
+        '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'
     ]
 
     def __init__(self):
         self.schedule = schedule
-        self.schedule.every(1).minutes.do(self.parsing_players_thread, True)
+        self.schedule.every(1).minutes.do(
+            self.parsing_players_thread, True
+        )
         self.schedule_daily_jobs()
 
     def schedule_daily_jobs(self):
+        """
+        Schedule daily jobs
+        """
         self.schedule_daily_squadrons_parsing()
         self.schedule_daily_no_publish_checks()
         self.schedule_daily_publish_results_checks()
 
     def schedule_daily_squadrons_parsing(self):
+        """
+        Iterate through all clans_parsing_time values and schedule a job for each one
+        """
         for parsing_time in self.clans_parsing_time:
-            self.schedule.every().day.at(parsing_time).do(self.parsing_squadrons_thread, True)
+            self.schedule.every().day.at(parsing_time).do(
+                self.parsing_squadrons_thread, True
+            )
 
     def schedule_daily_no_publish_checks(self):
-        self.schedule.every().day.at("16:50").do(
+        """
+        Schedule a job for every day with no publish check
+        """
+        self.schedule.every().day.at("14:50").do(
             self.parsing_squadrons_partial_thread, False
         )
-        self.schedule.every().day.at("17:00").do(
+        self.schedule.every().day.at("15:00").do(
             self.parsing_players_partial_thread, False
         )
 
     def schedule_daily_publish_results_checks(self):
-        self.schedule.every().day.at("00:15").do(
+        """
+        Schedule a job for every day with publish check
+        """
+        self.schedule.every().day.at("22:15").do(
             self.parsing_squadrons_partial_thread, True
         )
-        self.schedule.every().day.at("00:20").do(
+        self.schedule.every().day.at("22:20").do(
             self.parsing_players_partial_thread, True
         )
 
     def start(self):
+        """
+        Initialize the schedule updater
+        """
         try:
             print(f"Starting at time {time_now()}")
             keep_alive()
@@ -66,29 +92,44 @@ class Scheduler:
             print(f"Manually stopped at time {time_now()}")
 
     def clean_webhooks(self):
+        """
+        Clean all webhooks for no reason
+        """
         web_hooks = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
         for webhook_url in web_hooks:
             DiscordWebhook(url=webhook_url).remove_embeds()
 
     def parsing_players_thread(self, publish):
+        """
+        Initialize a thread for parsing players for instant updates
+        """
         print(f"Parsing players at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(PlayersLeaderboardUpdater,
                             WEBHOOK_PLAYERS, 'players', publish)
 
     def parsing_squadrons_thread(self, publish_changes):
+        """
+        Initialize a thread for parsing squadrons for instant updates
+        """
         print(f"Parsing squadrons at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(ClansLeaderboardUpdater,
                             WEBHOOK_SQUADRONS, "squadrons", publish_changes)
 
     def parsing_players_partial_thread(self, publish):
+        """
+        Initialize a thread for parsing players for day statistics
+        """
         print(f"Parsing players partial {publish} at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(PlayersLeaderboardUpdater,
                             WEBHOOK_DAY, "period_players", publish)
 
     def parsing_squadrons_partial_thread(self, publish_changes):
+        """
+        Initialize a thread for parsing squadrons for day statistics
+        """
         print(f"Parsing squadrons partial {publish_changes} at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(ClansLeaderboardUpdater,
@@ -96,5 +137,5 @@ class Scheduler:
 
 
 if __name__ == '__main__':
-    scheduler = Scheduler()
+    scheduler = ScheduleUpdater()
     scheduler.start()
