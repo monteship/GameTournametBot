@@ -15,7 +15,7 @@ LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",
 
 # Tracked clan data
 CLAN_URL = "https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine"
-TRACKED_CLAN_NAME = 'SOFUA'
+TRACKED_CLAN = 'SOFUA'
 CLAN_LEADER = 'Spiox_'
 
 # Emojis

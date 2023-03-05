@@ -6,7 +6,7 @@ from discord_webhook import DiscordWebhook, DiscordEmbed
 from selenium import webdriver
 from selenium.common import TimeoutException
 
-from config import WEBHOOK_DAY, TRACKED_CLAN_NAME, LB_URLS, EMOJI, CLAN_URL
+from config import WEBHOOK_DAY, LB_URLS, EMOJI, CLAN_URL, TRACKED_CLAN
 from database import Database
 
 # Selenium options
@@ -34,7 +34,7 @@ class Clan:
         self.changes = None
 
     def get_title(self) -> str:
-        msg_emoji = self.emoji['track_clan'] if self.name == TRACKED_CLAN_NAME else EMOJI['all_clans']
+        msg_emoji = self.emoji['track_clan'] if self.name == TRACKED_CLAN else EMOJI['all_clans']
         return f"{msg_emoji}          __{self.name}__"
 
     def get_stats_changes(self):
@@ -62,13 +62,13 @@ class ClansLeaderboardUpdater:
     Class used to update Clans Leaderboard.
     """
 
-    def __init__(self, webhook_url: str, table_name: str, publish_changes: bool):
+    def __init__(self, webhook_url: str, table_name: str):
         self.webhook_url = webhook_url
         self.table_name = table_name
         self.embeds = EmbedsBuilder(self.table_name)
         self.clans = []
         self.process_leaderboard_pages()
-        self.process_clan_instances(publish_changes)
+        self.process_clan_instances()
 
     def process_leaderboard_pages(self):
         """
@@ -92,22 +92,19 @@ class ClansLeaderboardUpdater:
                     clan = ClanScraper(url, rank).fetch_clan()
                     self.clans.append(clan)
 
-    def process_clan_instances(self, publish_changes: bool):
+    def process_clan_instances(self):
         with ClanDatabase(self.table_name) as conn:
             for clan in self.clans:
-                if publish_changes:
-                    clan.changes = conn.retrieve_clan_changes(clan)
-                else:
-                    clan.changes = None
+                clan.changes = conn.retrieve_clan_changes(clan)
                 conn.update_clan_data(clan)
                 if clan.rank > 30:
-                    if clan.name == TRACKED_CLAN_NAME:
+                    if clan.name == TRACKED_CLAN:
                         self.plan_b(clan)
                     continue
                 self.embeds.add_clan_data(clan)
 
         # Finish update
-        print(f"-----Done updating. Clans processed:{len(self.clans)}. Publish changes:{publish_changes}-----")
+        print(f"-----Done updating. Clans processed:{len(self.clans)}.-----")
         DiscordWebhookNotification(self.webhook_url, self.embeds)
 
     def plan_b(self, clan: Clan):
@@ -136,15 +133,13 @@ class EmbedsBuilder:
     def _set_player_schema(self):
 
         title = "Активні гравці" if self.table_name == 'players' else "Результати за день"
-        self.additional_embed = DiscordEmbed(
-            title=title + ' (Продовження)', color=self.embed_color, url=CLAN_URL)
+        self.additional_embed = DiscordEmbed(color=self.embed_color, url=CLAN_URL)
         return DiscordEmbed(
             title=title, color=self.embed_color, url=CLAN_URL)
 
     def _set_clan_schema(self):
         title = "Таблиця лідерів" if self.table_name == 'squadrons' else "Результати за день"
-        self.additional_embed = DiscordEmbed(
-            title=title + ' (Продовження)', color=self.embed_color, url=LB_URLS[1])
+        self.additional_embed = DiscordEmbed(color=self.embed_color, url=LB_URLS[1])
         return DiscordEmbed(
             title=title, color=self.embed_color, url=LB_URLS[0])
 
@@ -266,13 +261,6 @@ class DiscordWebhookNotification:
 
 
 if __name__ == '__main__':
-    with Database('squadrons') as test_conn:
-        NICKS = ['SOFUA']
-        for count, nick in enumerate(NICKS, 15):
-            test_conn.execute(
-                "UPDATE squadrons SET points = ?, rank =? WHERE name = ?",
-                (1200, count, nick))
-            test_conn.commit()
     start = time.time()
-    ClansLeaderboardUpdater(WEBHOOK_DAY, "squadrons", False)
+    ClansLeaderboardUpdater(WEBHOOK_DAY, "period_squadrons")
     print(time.time() - start)
