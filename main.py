@@ -18,7 +18,6 @@ from concurrent.futures import ThreadPoolExecutor
 def time_now():
     """
     Get current time in Kyiv/Europe
-    :return: Kyiv's time'
     """
     return datetime.datetime.now(timezone('Europe/Kyiv')).strftime('%H:%M')
 
@@ -31,9 +30,6 @@ class ScheduleUpdater:
 
     def __init__(self):
         self.schedule = schedule
-        self.schedule.every(1).minutes.do(
-            self.parsing_players_thread, True
-        )
         self.schedule_daily_jobs()
 
     def schedule_daily_jobs(self):
@@ -41,8 +37,7 @@ class ScheduleUpdater:
         Schedule daily jobs
         """
         self.schedule_daily_squadrons_parsing()
-        self.schedule_daily_no_publish_checks()
-        self.schedule_daily_publish_results_checks()
+        self.schedule_daily_players_parsing()
 
     def schedule_daily_squadrons_parsing(self):
         """
@@ -50,26 +45,21 @@ class ScheduleUpdater:
         """
         for parsing_time in self.clans_parsing_time:
             self.schedule.every().day.at(parsing_time).do(
-                self.parsing_squadrons_thread, True
+                self.parsing_squadrons_thread
             )
-
-    def schedule_daily_no_publish_checks(self):
-        """
-        Schedule a job for every day with no publish check
-        """
-        self.schedule.every().day.at("14:50").do(
-            self.parsing_squadrons_partial_thread, False
-        )
-        self.schedule.every().day.at("15:00").do(
-            self.parsing_players_partial_thread, False
+        self.schedule.every().day.at("22:15").do(
+            self.parsing_squadrons_partial_thread
         )
 
-    def schedule_daily_publish_results_checks(self):
+    def schedule_daily_players_parsing(self):
         """
         Schedule a job for every day with publish check
         """
-        self.schedule.every().day.at("22:15").do(
-            self.parsing_squadrons_partial_thread, True
+        self.schedule.every(1).minutes.do(
+            self.parsing_players_thread, True
+        )
+        self.schedule.every().day.at("15:00").do(
+            self.parsing_players_partial_thread, False
         )
         self.schedule.every().day.at("22:20").do(
             self.parsing_players_partial_thread, True
@@ -108,14 +98,14 @@ class ScheduleUpdater:
             executor.submit(PlayersLeaderboardUpdater,
                             WEBHOOK_PLAYERS, 'players', publish)
 
-    def parsing_squadrons_thread(self, publish_changes):
+    def parsing_squadrons_thread(self):
         """
         Initialize a thread for parsing squadrons for instant updates
         """
         print(f"Parsing squadrons at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(ClansLeaderboardUpdater,
-                            WEBHOOK_SQUADRONS, "squadrons", publish_changes)
+                            WEBHOOK_SQUADRONS, "squadrons")
 
     def parsing_players_partial_thread(self, publish):
         """
@@ -126,14 +116,14 @@ class ScheduleUpdater:
             executor.submit(PlayersLeaderboardUpdater,
                             WEBHOOK_DAY, "period_players", publish)
 
-    def parsing_squadrons_partial_thread(self, publish_changes):
+    def parsing_squadrons_partial_thread(self):
         """
         Initialize a thread for parsing squadrons for day statistics
         """
-        print(f"Parsing squadrons partial {publish_changes} at time {time_now()}")
+        print(f"Parsing squadrons partial at time {time_now()}")
         with ThreadPoolExecutor() as executor:
             executor.submit(ClansLeaderboardUpdater,
-                            WEBHOOK_DAY, "period_squadrons", publish_changes)
+                            WEBHOOK_DAY, "period_squadrons")
 
 
 if __name__ == '__main__':

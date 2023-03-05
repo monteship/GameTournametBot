@@ -8,6 +8,17 @@ from database import Database
 from squadron import EmbedsBuilder, DiscordWebhookNotification
 
 
+def measure_time(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"Execution time of {func.__name__}: {end_time - start_time:.5f} seconds")
+        return result
+
+    return wrapper
+
+
 class Player:
     """
     Class representing a player
@@ -152,6 +163,7 @@ class PlayerDatabase(Database):
         self.commit()
 
 
+@measure_time
 class PlayersLeaderboardUpdater:
     """
     Updater for the players leaderboard
@@ -249,6 +261,6 @@ class QuitterInformer:
 
 
 if __name__ == '__main__':
-    start_time = time.time()
+    start_time_t = time.time()
     PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', False)
-    print("End time: ", time.time() - start_time)
+    print("End time: ", time.time() - start_time_t)
