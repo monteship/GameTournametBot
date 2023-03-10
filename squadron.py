@@ -9,13 +9,6 @@ from selenium.common import TimeoutException
 from config import WEBHOOK_DAY, LB_URLS, EMOJI, CLAN_URL, TRACKED_CLAN
 from database import Database
 
-# Selenium options
-options = webdriver.ChromeOptions()
-options.add_argument("--headless")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-logging")
-
 
 class Clan:
     """
@@ -61,6 +54,11 @@ class ClansLeaderboardUpdater:
     """
     Class used to update Clans Leaderboard.
     """
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-logging")
 
     def __init__(self, webhook_url: str, table_name: str):
         self.webhook_url = webhook_url
@@ -75,7 +73,7 @@ class ClansLeaderboardUpdater:
         Extract links from leaderboard pages.
         """
         rank = 0
-        with webdriver.Chrome(executable_path='chromedriver', options=options) as driver:
+        with webdriver.Chrome(executable_path='chromedriver', options=self.options) as driver:
             driver.set_page_load_timeout(10)
             for leaderboard_page in LB_URLS:
                 try:
@@ -104,7 +102,6 @@ class ClansLeaderboardUpdater:
                 self.embeds.add_clan_data(clan)
 
         # Finish update
-        print(f"-----Done updating. Clans processed:{len(self.clans)}.-----")
         DiscordWebhookNotification(self.webhook_url, self.embeds)
 
     def plan_b(self, clan: Clan):
@@ -153,11 +150,11 @@ class EmbedsBuilder:
 
     def add_player_data(self, active_players: int, player):
         if active_players >= 25:
-            self.additional_embed.add_embed_field(name=player.get_title(),
-                                                  value=player.get_stats_changes())
+            self.additional_embed.add_embed_field(name=player.title(),
+                                                  value=player.stats_changes())
         else:
-            self.embed.add_embed_field(name=player.get_title(),
-                                       value=player.get_stats_changes())
+            self.embed.add_embed_field(name=player.title(),
+                                       value=player.stats_changes())
 
 
 class ClanScraper:

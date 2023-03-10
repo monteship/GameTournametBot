@@ -8,17 +8,6 @@ from database import Database
 from squadron import EmbedsBuilder, DiscordWebhookNotification
 
 
-def measure_time(func):
-    def wrapper(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        end_time = time.time()
-        print(f"Execution time of {func.__name__}: {end_time - start_time:.5f} seconds")
-        return result
-
-    return wrapper
-
-
 class Player:
     """
     Class representing a player
@@ -34,10 +23,12 @@ class Player:
         self.rank = None
         self.changes = {'points': 0, 'role': None, 'rank': 0}
 
-    def get_title(self) -> str:
-        return f"{self.emoji['track_clan']} {self.name}" if self.name in CLAN_LEADER else f"__{self.name}__"
+    def title(self) -> str:
+        if self.name in CLAN_LEADER:
+            return f"{self.emoji['track_clan']} {self.name}"
+        return f"__{self.name}__"
 
-    def get_stats_changes(self) -> str:
+    def stats_changes(self) -> str:
         """
         Format the message to be sent based on the points change
         """
@@ -63,18 +54,18 @@ class ClanPageScraper:
     def __init__(self, clan_url: str):
         self.clan_url = clan_url
         self.members: int = 0
-        self.element = self._process_clan_page()
+        self.element = self.process_clan_page()
         self.players = []
         for i in range(0, self.members):
-            self.players.append(self._extract_player_data(i))
+            self.players.append(self.extract_player_data(i))
 
-    def _process_clan_page(self) -> NavigableString:
+    def process_clan_page(self) -> NavigableString:
         page = requests.get(self.clan_url, timeout=50)
         soup = BeautifulSoup(page.text, 'lxml')
         self.members = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
         return soup.find(class_="squadrons-members__grid-item")
 
-    def _extract_player_data(self, iteration) -> Player:
+    def extract_player_data(self, iteration) -> Player:
         """
         Extracts the player data from a BeautifulSoup element
         """
@@ -132,19 +123,31 @@ class PlayerDatabase(Database):
             self.player.changes['rank'] = 0
 
     def update_player_data(self):
-        self.execute(f"SELECT * FROM {self.table_name} WHERE name = '{self.player.name}'")
+        """
+        Updates the player data in the database if it exists,
+        else creates it
+        """
+        self.execute(f'''SELECT * FROM {self.table_name}
+                          WHERE name = "{self.player.name}"''')
         if self.fetchone() is None:
-            sql_query = f"INSERT INTO {self.table_name} VALUES (?, ?, ?, ?, ?)"
-            sql_values = ((self.player.name, self.player.points, self.player.role, self.player.date_join,
+            sql_query = f'''INSERT INTO {self.table_name}
+                             VALUES (?, ?, ?, ?, ?)'''
+            sql_values = ((self.player.name,
+                           self.player.points,
+                           self.player.role,
+                           self.player.date_join,
                            self.player.rank))
             self.execute(sql_query, sql_values)
         else:
             sql_query = f'''UPDATE {self.table_name}
-                                         SET points = ?,
-                                             role = ?,
-                                             date_join = ?
-                                         WHERE name = ?'''
-            sql_values = (self.player.points, self.player.role, self.player.date_join, self.player.name)
+                             SET points = ?,
+                                 role = ?,
+                                 date_join = ?
+                             WHERE name = ?'''
+            sql_values = (self.player.points,
+                          self.player.role,
+                          self.player.date_join,
+                          self.player.name)
             self.execute(sql_query, sql_values)
             self.commit()
         self.commit()
@@ -154,22 +157,21 @@ class PlayerDatabase(Database):
         Sets the ranks of the players in the database
         """
         self.execute(f"""UPDATE {self.table_name}
-                        SET rank = (
+                          SET rank = (
                             SELECT COUNT(*) + 1
                             FROM players p2
                             WHERE p2.points > {self.table_name}.points
                                     )
-                        WHERE {self.table_name}.points IS NOT NULL;""")
+                          WHERE {self.table_name}.points IS NOT NULL;""")
         self.commit()
 
 
-@measure_time
 class PlayersLeaderboardUpdater:
     """
-    Updater for the players leaderboard
+    Main class for updating the players leaderboard
     """
 
-    def __init__(self, webhook_url: str, table_name: str, publish: bool):
+    def __init__(self, webhook_url: str, table_name: str, ):
         self.webhook_url = webhook_url
         self.table_name = table_name
         self.embeds = EmbedsBuilder(self.table_name)
@@ -177,9 +179,9 @@ class PlayersLeaderboardUpdater:
         self.active_players = 0
         self.element = None
         self.players = ClanPageScraper(CLAN_URL).players
-        self.process_players(publish)
+        self.process_players()
 
-    def process_players(self, publish: bool):
+    def process_players(self):
         """
         Run the leaderboard updater.
         """
@@ -199,17 +201,30 @@ class PlayersLeaderboardUpdater:
                 continue
             with PlayerDatabase(self.table_name, player) as conn:
                 conn.retrieve_player_rank_changes()
-                if publish:
-                    self.active_players += 1
-                    self.embeds.add_player_data(self.active_players, player)
+                self.active_players += 1
+                self.embeds.add_player_data(self.active_players, player)
 
         # Finish update
-        print(f"-----Done updating. Active players:{self.active_players}. Publish:{publish}-----")
         DiscordWebhookNotification(self.webhook_url, self.embeds, self.active_players)
-        QuitterInformer(self.personal)
+        QuittersProcess(self.personal)
 
 
-class QuitterInformer:
+class Quitter:
+    def __init__(self, name: str, points: int, date_join: datetime):
+        self.name = name
+        self.points = points
+        self.date_join = date_join
+        self.quit = self._nick_validation()
+
+    def _nick_validation(self) -> bool:
+        page = requests.get(
+            f"https://warthunder.com/en/community/searchplayers/?name={self.name}",
+            timeout=10)
+        soup = BeautifulSoup(page.content, "lxml")
+        return bool(soup.find_all(string=self.name))
+
+
+class QuittersProcess:
     """
     Class representing the informer for the quitter
     """
@@ -217,7 +232,8 @@ class QuitterInformer:
 
     def __init__(self, personal: list):
         self.personal = personal
-        self.quitters = self.check_quit()
+        self.quitters: list[Quitter] = []
+        self.check_quit()
         if self.quitters is not None:
             self.quitter_inform()
 
@@ -226,7 +242,6 @@ class QuitterInformer:
         Parses the players from the leaderboard,
         checks if they left and adds them to the Discord embed
         """
-        quitters_data = []
         with PlayerDatabase('players') as conn:
             query_data = conn.query("SELECT name FROM players")
             db_personal = [person[0] for person in query_data]
@@ -234,12 +249,11 @@ class QuitterInformer:
             if not quit_persons:
                 return None
             for person in quit_persons:
-
-                quitters_data.append(conn.query(
-                    f"SELECT name, points, date_join FROM players WHERE name = '{person}'")[0])
+                name, points, date_join = conn.query(
+                    f"SELECT name, points, date_join FROM players WHERE name = '{person}'")[0]
+                self.quitters.append(Quitter(name, points, date_join))
                 for table in self.player_tables:
                     conn.delete_data(person, table)
-            return quitters_data
 
     def quitter_inform(self):
         """
@@ -247,20 +261,25 @@ class QuitterInformer:
         """
         webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
         webhook.remove_embeds()
-        for data in self.quitters:
-            date_join = datetime.datetime.strptime(data[2], '%Y-%m-%d').date()
-            summary = datetime.datetime.today().date() - date_join
-            embed = DiscordEmbed()
-            embed.set_title(f"{data[0]}")
-            embed.set_description(f" \n ```Покинув нас з очками в кількості: {data[1]} \n"
-                                  f"Пробув з нами {str(summary.days)} дня/днів```")
-            embed.set_color("000000")
-            embed.set_url(f"https://warthunder.com/en/community/userinfo/?nick={data[0]}")
+        for quitter in self.quitters:
+            if not quitter.quit:
+                embed = DiscordEmbed(
+                    title=f"{quitter.name} змінив нікнейм...")
+            else:
+                date_join = datetime.datetime.strptime(
+                    quitter.date_join, '%Y-%m-%d').date()
+                summary = datetime.datetime.today().date() - date_join
+                embed = DiscordEmbed(
+                    title=quitter.name,
+                    description=f" \n ```Покинув нас з очками в кількості: {quitter.points} \n"
+                                f"Пробув з нами {str(summary.days)} дня/днів```",
+                    color="000000",
+                    url=f"https://warthunder.com/en/community/userinfo/?nick={quitter.name}")
             webhook.add_embed(embed)
             webhook.execute(remove_embeds=True)
 
 
 if __name__ == '__main__':
     start_time_t = time.time()
-    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players', False)
+    PlayersLeaderboardUpdater(WEBHOOK_PLAYERS, 'period_players')
     print("End time: ", time.time() - start_time_t)
