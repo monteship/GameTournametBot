@@ -1,12 +1,15 @@
 import datetime
+import re
 import time
+from typing import Iterator
+
 import requests
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup, NavigableString, ResultSet
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, EMOJI, CLAN_LEADER
 from database import Database
 from squadron import EmbedsBuilder, DiscordWebhookNotification
-
+from rich import print
 
 class Player:
     """
@@ -54,37 +57,24 @@ class ClanPageScraper:
     def __init__(self, clan_url: str):
         self.clan_url = clan_url
         self.members: int = 0
-        self.element = self.process_clan_page()
-        self.players = []
-        for i in range(0, self.members):
-            self.players.append(self.extract_player_data(i))
+        self.element = self.get_clan_page()
+        self.players = [player for player in self.player_generator()]
 
-    def process_clan_page(self) -> NavigableString:
+    def get_clan_page(self) -> ResultSet:
         page = requests.get(self.clan_url, timeout=50)
         soup = BeautifulSoup(page.text, 'lxml')
-        self.members = int(str(soup.find(class_='squadrons-info__meta-item').text).split()[-1])
-        return soup.find(class_="squadrons-members__grid-item")
+        return soup.find_all(class_="squadrons-members__grid-item")
 
-    def extract_player_data(self, iteration) -> Player:
+    def player_generator(self) -> Iterator[Player]:
         """
-        Extracts the player data from a BeautifulSoup element
+        Generates the players
         """
-        i_range = 11 if iteration == 0 else 6
-        i_range_2 = [6, 7, 9, 10] if iteration == 0 else [1, 2, 4, 5]
-        name, points, role, date_join = '', 0, '', '01-01-2001'
-        for i in range(i_range):
-            self.element = self.element.find_next_sibling()
-            if i == i_range_2[0]:
-                name = self.element.text.strip()
-            if i == i_range_2[1]:
-                points = int(self.element.text.strip())
-            if i == i_range_2[2]:
-                role = str(self.element.text.strip())
-            if i == i_range_2[3]:
-                date_join = datetime.datetime.strptime(
-                    self.element.text.strip(), '%d.%m.%Y').date()
-        return Player(name, points, role, date_join)
-
+        for i in range(7, len(self.element), 6):
+            name = re.search(r'nick=(.*)"', str(self.element[i])).group(1)
+            points = int(self.element[i+1].text.strip())
+            role = str(self.element[i+3].text.strip())
+            date_join = datetime.datetime.strptime(self.element[i+4].text.strip(), '%d.%m.%Y').date()
+            yield Player(name, points, role, date_join)
 
 class PlayerDatabase(Database):
     player_tables = "players", "period_players"
@@ -234,7 +224,7 @@ class QuittersProcess:
         self.personal = personal
         self.quitters: list[Quitter] = []
         self.check_quit()
-        if self.quitters is not None:
+        if self.quitters:
             self.quitter_inform()
 
     def check_quit(self) -> list | None:

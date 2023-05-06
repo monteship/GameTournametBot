@@ -1,12 +1,10 @@
 import os
+test = 'https://discord.com/api/webhooks/1104312032502759524/xcK4bI2gYJ3Z6WtP9rPiRIYLSuasw2ssmpS0Kh1Os8Dl6WxNnG8KVTsbZARswsOCWq2t'
+WEBHOOK_PLAYERS = os.environ.get('WEBHOOK_PLAYERS', test)
+WEBHOOK_SQUADRONS = os.environ.get('WEBHOOK_SQUADRONS', test)
+WEBHOOK_DAY = os.environ.get('WEBHOOK_DAY', test)
+WEBHOOK_ABANDONED = os.environ.get('WEBHOOK_ABANDONED', test)
 
-try:
-    WEBHOOK_PLAYERS = os.environ['WEBHOOK_PLAYERS']
-    WEBHOOK_SQUADRONS = os.environ['WEBHOOK_SQUADRONS']
-    WEBHOOK_DAY = os.environ['WEBHOOK_DAY']
-    WEBHOOK_ABANDONED = os.environ['WEBHOOK_ABANDONED']
-except KeyError as err:
-    print(err, 'raise an error. \nYou must set the environment variables in config.py')
 
 # Critical URL's. Don't change these.
 LB_URLS = ["https://warthunder.com/en/community/clansleaderboard",
