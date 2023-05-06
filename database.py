@@ -7,13 +7,13 @@ class Database:
     """
     Custom database class
     """
-    player_tables = "players", "period_players"
-    squadrons_tables = "squadrons", "period_squadrons"
+    player_tables = ("players", "period_players")
+    squadrons_tables = ("squadrons", "period_squadrons")
 
     def __init__(self, initialize=False):
         self._conn = sqlite3.connect(DB_PATH)
         self._cursor = self._conn.cursor()
-        if initialize is True:
+        if initialize:
             self.create_databases()
 
     def __enter__(self):

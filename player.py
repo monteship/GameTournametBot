@@ -4,12 +4,13 @@ import time
 from typing import Iterator
 
 import requests
-from bs4 import BeautifulSoup, NavigableString, ResultSet
+from bs4 import BeautifulSoup, ResultSet
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from config import CLAN_URL, WEBHOOK_ABANDONED, WEBHOOK_PLAYERS, EMOJI, CLAN_LEADER
 from database import Database
 from squadron import EmbedsBuilder, DiscordWebhookNotification
 from rich import print
+
 
 class Player:
     """
@@ -71,10 +72,11 @@ class ClanPageScraper:
         """
         for i in range(7, len(self.element), 6):
             name = re.search(r'nick=(.*)"', str(self.element[i])).group(1)
-            points = int(self.element[i+1].text.strip())
-            role = str(self.element[i+3].text.strip())
-            date_join = datetime.datetime.strptime(self.element[i+4].text.strip(), '%d.%m.%Y').date()
+            points = int(self.element[i + 1].text.strip())
+            role = str(self.element[i + 3].text.strip())
+            date_join = datetime.datetime.strptime(self.element[i + 4].text.strip(), '%d.%m.%Y').date()
             yield Player(name, points, role, date_join)
+
 
 class PlayerDatabase(Database):
     player_tables = "players", "period_players"
@@ -252,21 +254,15 @@ class QuittersProcess:
         webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
         webhook.remove_embeds()
         for quitter in self.quitters:
-            if not quitter.quit:
-                embed = DiscordEmbed(
-                    title=f"{quitter.name} змінив нікнейм...")
-            else:
-                date_join = datetime.datetime.strptime(
-                    quitter.date_join, '%Y-%m-%d').date()
-                summary = datetime.datetime.today().date() - date_join
-                embed = DiscordEmbed(
-                    title=quitter.name,
-                    description=f" \n ```Покинув нас з очками в кількості: {quitter.points} \n"
-                                f"Пробув з нами {str(summary.days)} дня/днів```",
-                    color="000000",
-                    url=f"https://warthunder.com/en/community/userinfo/?nick={quitter.name}")
+            title = f"{quitter.name} змінив нікнейм..." if not quitter.quit else quitter.name
+            embed = DiscordEmbed(
+                title=title,
+                description=f" \n ```Покинув нас з очками в кількості: {quitter.points} \n"
+                            f"Пробув з нами {str(datetime.datetime.today().date() - quitter.date_join)} дня/днів```",
+                color="000000",
+                url=f"https://warthunder.com/en/community/userinfo/?nick={quitter.name}")
             webhook.add_embed(embed)
-            webhook.execute(remove_embeds=True)
+        webhook.execute(remove_embeds=True)
 
 
 if __name__ == '__main__':
