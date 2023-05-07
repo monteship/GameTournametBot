@@ -1,9 +1,7 @@
-import datetime
 import time
 
 import schedule
 from discord_webhook import DiscordWebhook
-from pytz import timezone
 
 from config import WEBHOOK_PLAYERS, WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_ABANDONED
 from database import Database
@@ -18,7 +16,10 @@ logging.basicConfig(
     level="INFO",
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True, tracebacks_show_locals=True)]
+    handlers=[RichHandler(rich_tracebacks=True,
+                          tracebacks_show_locals=True,
+                          tracebacks_suppress=[]
+                          )]
 )
 
 log = logging.getLogger("rich")
@@ -48,7 +49,6 @@ def parsing_squadrons_thread(webhook, table_name):
 class ScheduleUpdater:
     web_hooks = [WEBHOOK_DAY, WEBHOOK_SQUADRONS, WEBHOOK_PLAYERS, WEBHOOK_ABANDONED]
     clans_parsing_time = [f"{hour}:{minute}" for hour in range(15, 23) for minute in ["00", "30"]]
-    local_timezone = timezone('Europe/Kyiv')
 
     def __init__(self):
         self.schedule = schedule

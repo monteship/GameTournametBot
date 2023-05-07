@@ -36,20 +36,19 @@ class Player:
         """
         Format the message to be sent based on the points change
         """
-        message = ''
-        if self.changes['points'] != 0:
-            if self.changes['points'] > 0:
-                message = \
-                    f"Очки: {self.points} {self.emoji['increase']} ``(+{self.changes['points']})``"
+        points_change = self.changes['points']
+        rank_change = self.changes['rank']
+        message = f"Очки: {self.points} "
+        if points_change > 0:
+            message += f"{self.emoji['increase']} ``(+{points_change})``"
+        elif points_change < 0:
+            message += f"{self.emoji['decrease']} ``({points_change})``"
+        message += f"\nМісце {self.rank}"
+        if rank_change != 0:
+            if rank_change < 0:
+                message += f" {self.emoji['increase']} ``({rank_change})``"
             else:
-                message = \
-                    f"Очки: {self.points} {self.emoji['decrease']} ``({self.changes['points']})``"
-        message = message + f"\nМісце {self.rank}"
-        if self.changes['rank'] != 0:
-            if self.changes['rank'] < 0:
-                message = message + f" {self.emoji['increase']} ``({self.changes['rank']})``"
-            else:
-                message = message + f" {self.emoji['decrease']} ``(+{self.changes['rank']})``"
+                message += f" {self.emoji['decrease']} ``(+{rank_change})``"
         return message
 
 
@@ -92,8 +91,7 @@ class PlayerDatabase(Database):
         try:
             return int(self.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
-        except IndexError as err:
-            print(err, 'line 102')
+        except IndexError:
             return 150
 
     def retrieve_player_points_changes(self):
@@ -101,8 +99,7 @@ class PlayerDatabase(Database):
             points_change = self.player.points - int(self.query(
                 f"SELECT points FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0])
             self.player.changes['points'] = points_change
-        except IndexError as err:
-            print(err, 'line 110')
+        except IndexError:
             self.player.changes['points'] = 0
 
     def retrieve_player_rank_changes(self):
@@ -110,8 +107,7 @@ class PlayerDatabase(Database):
             rank_change = self.player.rank - self.query(
                 f"SELECT rank FROM {self.table_name} WHERE name = '{self.player.name}'")[0][0]
             self.player.changes['rank'] = rank_change
-        except IndexError as err:
-            print(err, 'line 118')
+        except IndexError:
             self.player.changes['rank'] = 0
 
     def update_player_data(self):
