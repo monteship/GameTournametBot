@@ -17,21 +17,21 @@ class ScheduleSpiders:
 
     def schedule_daily_leader_board_parsing(self):
         self.schedule.every().day.at("22:15").do(
-            self.start_spider, spider_name='LeaderBoardStats', table='squadrons_daily')
+            self.start_spider, spider_name='LeaderBoardStats', table_name='squadrons_daily')
 
         clans_parsing_time = [f"{hour}:{minute}" for hour in range(15, 23) for minute in ["00", "30"]]
         for parsing_time in clans_parsing_time:
             self.schedule.every().day.at(parsing_time).do(
-                self.start_spider, spider_name='LeaderBoardStats', table='squadrons_instant')
+                self.start_spider, spider_name='LeaderBoardStats', table_name='squadrons_instant')
 
     def schedule_daily_players_parsing(self):
         self.schedule.every().day.at("22:16").do(
-            self.start_spider, spider_name='PlayerStats', table='players_daily')
+            self.start_spider, spider_name='PlayerStats', table_name='players_daily')
         self.schedule.every().minute.do(
-            self.start_spider, spider_name='PlayerStats', table='players_instant')
+            self.start_spider, spider_name='PlayerStats', table_name='players_instant')
 
-    def start_spider(self, spider_name, table):
-        self.process.crawl(spider_name, table=table)
+    def start_spider(self, spider_name, table_name):
+        self.process.crawl(spider_name, table_name=table_name)
         self.process.start()
 
     def start(self):

@@ -1,41 +1,46 @@
+import logging
 import sqlite3
 
 from .items import PlayerItem, ClanItem
-from .settings import EMOJI, CLAN_LEADERS
+from .settings import EMOJI, CLAN_LEADERS, CLAN_URL, WEBHOOK_PLAYERS, WEBHOOK_DAY
+
+from discord_webhook import DiscordWebhook, DiscordEmbed
 
 
 class WtStatsScraperPipeline:
     def __init__(self):
         self.con = sqlite3.connect("wtstats.sqlite")
         self.cur = self.con.cursor()
+        self.table_name = None
         self.create_tables()
-        self.changes = {}
+        self.changes = dict()
         self.members = []
 
     def process_item(self, item, spider):
+        if not self.table_name:
+            self.table_name = spider.table_name
         if isinstance(item, PlayerItem):
             self.members.append(item['nick'])
-            self.update_players(item, spider.table)
+            self.update_players(item)
         if isinstance(item, ClanItem):
             self.update_squadrons(item)
         return item
 
-    def update_players(self, item, table_name):
+    def update_players(self, item):
         self.cur.execute(
-            f"SELECT nick, rating, activity FROM {table_name} WHERE nick = ?",
+            f"SELECT nick, rating, activity FROM {self.table_name} WHERE nick = ?",
             (item['nick'],))
         result = self.cur.fetchone()
         if not result:
             self.cur.execute(
-                f"INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?)",
+                f"INSERT INTO {self.table_name} VALUES (?, ?, ?, ?, ?)",
                 (item['nick'], item['rating'], item['activity'], item['role'], item['date_joined']))
         else:
             self.cur.execute(
-                f"UPDATE {table_name} SET rating = ?, activity = ?, role = ?, date_joined = ? WHERE nick = ?",
+                f"UPDATE {self.table_name} SET rating = ?, activity = ?, role = ?, date_joined = ? WHERE nick = ?",
                 (item['rating'], item['activity'], item['role'], item['date_joined'], item['nick']))
-            nick, old_rating, old_activity = result
-            if old_rating != item['rating']:
-                self.make_player_message(nick, old_rating, item['rating'])
+            if int(result[1]) != int(item['rating']):
+                self.make_player_message(result[0], int(result[1]), int(item['rating']))
             ## todo: add activity chack for rating inactive players
         self.con.commit()
 
@@ -46,16 +51,36 @@ class WtStatsScraperPipeline:
         message = f"Очки: {new_rating} {emoji} ``({change})``"
         self.changes[title] = message
 
+    def send_changes(self):
+        announce = "Активні гравці" if self.table_name == 'players_instant' else "Результати за день"
+        embed = DiscordEmbed(title=announce, color='ff0000', url=CLAN_URL)
+        additional_embed = DiscordEmbed(color='ff0000', url=CLAN_URL)
+        for i, (title, changes) in enumerate(self.changes.items()):
+            if i >= 25:
+                additional_embed.add_embed_field(name=title, value=changes)
+            else:
+                embed.add_embed_field(name=title, value=changes)
+        webhook = DiscordWebhook(url=WEBHOOK_PLAYERS if self.table_name == 'players_instant' else WEBHOOK_DAY)
+        if self.changes:
+            webhook.add_embed(embed)
+            webhook.execute(remove_embeds=True)
+        if len(self.changes) > 25:
+            webhook.add_embed(additional_embed)
+            webhook.execute(remove_embeds=True)
+
+    def check_leavers(self):
+        self.cur.execute("SELECT nick FROM players_instant")
+        database_members = self.cur.fetchall()
+        logging.info(f"Database members: {database_members}")
+
     def update_squadrons(self, item):
         pass
 
     def close_spider(self, spider):
         self.con.commit()
+        self.check_leavers()
         self.con.close()
         self.send_changes()
-
-    def send_changes(self):
-        pass
 
     def create_tables(self):
         for table_name in ['players_daily', 'players_instant']:

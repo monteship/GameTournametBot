@@ -10,12 +10,12 @@ from ..settings import CLAN_URL
 
 class PlayerStatsSpider(scrapy.Spider):
     name = "PlayerStats"
-    table = None
+    table_name = None
     start_urls = [CLAN_URL]
 
-    def __init__(self, table, **kwargs):
+    def __init__(self, table_name, **kwargs):
         super().__init__(**kwargs)
-        self.table = table
+        self.table_name = table_name
 
     def parse(self, response):
         grid = response.css('.squadrons-members__grid-item')

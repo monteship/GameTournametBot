@@ -14,7 +14,7 @@ def get_timestamp():
 
 class LeaderBoardStatsSpider(scrapy.Spider):
     name = "LeaderBoardStats"
-    table = None
+    table_name = None
     start_url = "https://warthunder.com/en/community/getclansleaderboard/dif/_hist/page/{page}/sort/dr_era5?_={time}"
 
     def start_requests(self):
@@ -22,9 +22,9 @@ class LeaderBoardStatsSpider(scrapy.Spider):
         for page in range(1, 4):
             yield scrapy.Request(self.start_url.format(page=page, time=timestamp))
 
-    def __init__(self, table, **kwargs):
+    def __init__(self, table_name, **kwargs):
         super().__init__(**kwargs)
-        self.table = table
+        self.table_name = table_name
 
     def parse(self, response):
         for quote in response.json()['data']:
