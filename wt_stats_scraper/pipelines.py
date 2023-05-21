@@ -1,110 +1,71 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import create_engine, Column, Integer, String, DATE
-from sqlalchemy.orm import Session
-import os
-
-from sqlalchemy.orm.attributes import get_history
+import sqlite3
 
 from .items import PlayerItem, ClanItem
-
-Base = declarative_base()
-
-
-class PlayersTable(Base):
-    __tablename__ = 'players'
-    nick = Column(String, primary_key=True)
-    rating = Column(Integer)
-    activity = Column(Integer)
-    role = Column(String)
-    date_joined = Column(DATE)
-    changes = Column(String)
-
-    def __init__(self, nick, rating, activity, role, date_joined, changes=None):
-        self.nick = nick
-        self.rating = rating
-        self.activity = activity
-        self.role = role
-        self.date_joined = date_joined
-        self.changes = changes
-
-    def __repr__(self):
-        return "<PlayerItem %s, %s, %s, %s, %s, %s)>" % \
-            (self.nick, self.rating, self.activity, self.role, self.date_joined, self.changes)
-
-
-class LeaderBoardTable(Base):
-    __tablename__ = 'leaderboard'
-    tag = Column(String, primary_key=True)
-    rank = Column(Integer)
-    name = Column(String)
-    members = Column(Integer)
-    rating = Column(Integer)
-    kills_to_death = Column(Integer)
-    changes = Column(String)
-
-    def __init__(self, tag, rank, name, members, rating, kills_to_death, changes=None):
-        self.tag = tag
-        self.rank = rank
-        self.name = name
-        self.members = members
-        self.rating = rating
-        self.kills_to_death = kills_to_death
-        self.changes = changes
-
-    def __repr__(self):
-        return "<LeaderBoardItem %s, %s, %s, %s, %s, %s, %s)>" % \
-            (self.tag, self.rank, self.name, self.members, self.rating, self.kills_to_death, self.changes)
+from .settings import EMOJI, CLAN_LEADERS
 
 
 class WtStatsScraperPipeline:
     def __init__(self):
-        basename = 'wtstats.sqlite'
-        self.engine = create_engine("sqlite:///%s" % basename, echo=False)
-        if not os.path.exists(basename):
-            Base.metadata.create_all(self.engine)
+        self.con = sqlite3.connect("wtstats.sqlite")
+        self.cur = self.con.cursor()
+        self.create_tables()
+        self.changes = {}
+        self.members = []
 
     def process_item(self, item, spider):
         if isinstance(item, PlayerItem):
-            pt = PlayersTable(
-                nick=item['nick'],
-                rating=item['rating'],
-                activity=item['activity'],
-                role=item['role'],
-                date_joined=item['date_joined'])
-            self.session.add(pt)
-            if self.session.is_modified(pt, include_collections=False):
-                for attr in ['rating']:
-                    history = get_history(pt, attr)
-                    if history.has_changes():
-                        changes = f', '.join(str(change) for change in history.deleted + history.added)
-                        setattr(pt, 'changes', changes)
-
+            self.members.append(item['nick'])
+            self.update_players(item, spider.table)
         if isinstance(item, ClanItem):
-            lbt = LeaderBoardTable(
-                tag=item['tag'],
-                rank=item['rank'],
-                name=item['name'],
-                members=item['members'],
-                rating=item['rating'],
-                kills_to_death=item['kills_to_death'])
-            self.session.add(lbt)
-            if self.session.is_modified(lbt, include_collections=False):
-                for attr in ['rank', 'members', 'rating', 'kills_to_death']:
-                    history = get_history(lbt, attr)
-                    if history.has_changes():
-                        changes = ', '.join(str(change) for change in history.deleted + history.added)
-                        setattr(lbt, 'changes', changes)
+            self.update_squadrons(item)
         return item
 
+    def update_players(self, item, table_name):
+        self.cur.execute(
+            f"SELECT nick, rating, activity FROM {table_name} WHERE nick = ?",
+            (item['nick'],))
+        result = self.cur.fetchone()
+        if not result:
+            self.cur.execute(
+                f"INSERT INTO {table_name} VALUES (?, ?, ?, ?, ?)",
+                (item['nick'], item['rating'], item['activity'], item['role'], item['date_joined']))
+        else:
+            self.cur.execute(
+                f"UPDATE {table_name} SET rating = ?, activity = ?, role = ?, date_joined = ? WHERE nick = ?",
+                (item['rating'], item['activity'], item['role'], item['date_joined'], item['nick']))
+            nick, old_rating, old_activity = result
+            if old_rating != item['rating']:
+                self.make_player_message(nick, old_rating, item['rating'])
+            ## todo: add activity chack for rating inactive players
+        self.con.commit()
+
+    def make_player_message(self, nick, old_rating, new_rating):
+        title = f"{EMOJI['track_clan']} {nick}" if nick in CLAN_LEADERS else f"__{nick}__"
+        change = new_rating - old_rating
+        emoji = EMOJI['increase'] if change > 0 else EMOJI['decrease']
+        message = f"Очки: {new_rating} {emoji} ``({change})``"
+        self.changes[title] = message
+
+    def update_squadrons(self, item):
+        pass
+
     def close_spider(self, spider):
-        self.session.commit()
-        self.session.close()
+        self.con.commit()
+        self.con.close()
+        self.send_changes()
 
-        players_changes = self.session.query(PlayersTable).filter(PlayersTable.changes.isnot(None)).all()
-        if players_changes:
-            message = "PlayersTable changes:\n"
-            for player in players_changes:
-                message += f"__{player.nick}__\nChanges: {player.changes}\n"
+    def send_changes(self):
+        pass
 
-    def open_spider(self, spider):
-        self.session = Session(bind=self.engine)
+    def create_tables(self):
+        for table_name in ['players_daily', 'players_instant']:
+            self.cur.execute(
+                f'''CREATE TABLE IF NOT EXISTS {table_name} 
+                    ("nick" TEXT, "rating" INTEGER, "activity" INTEGER, "role" TEXT, "date_joined" DATE)
+                ''')
+        for table_name in ['squadrons_daily', 'squadrons_instant']:
+            self.cur.execute(
+                f'''CREATE TABLE IF NOT EXISTS {table_name} 
+                ("tag" TEXT, "rank" INTEGER, "name" TEXT, "members" INTEGER, "rating" INTEGER, "kills_to_death" INTEGER)
+                ''')
+        self.con.commit()
