@@ -10,7 +10,6 @@ from ..settings import CLAN_URL
 
 class PlayerStatsSpider(scrapy.Spider):
     name = "PlayerStats"
-    table_name = None
     start_urls = [CLAN_URL]
 
     def __init__(self, table_name, **kwargs):

@@ -14,7 +14,6 @@ def get_timestamp():
 
 class LeaderBoardStatsSpider(scrapy.Spider):
     name = "LeaderBoardStats"
-    table_name = None
     start_url = "https://warthunder.com/en/community/getclansleaderboard/dif/_hist/page/{page}/sort/dr_era5?_={time}"
 
     def start_requests(self):
@@ -34,6 +33,6 @@ class LeaderBoardStatsSpider(scrapy.Spider):
                 tag=quote['tagl'],
                 name=quote['lastPaidTag'],
                 members=quote['members_cnt'],
-                rating=quote['dr_era5_hist'],
+                rating=stats['dr_era5_hist'],
                 kills_to_death=round((stats['akills_hist'] + stats['gkills_hist']) / stats['deaths_hist'], 2),
             )
