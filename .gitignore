@@ -1,0 +1,5 @@
+/venv/
+/.idea/
+/.replit
+/.upm
+/__pycache__/
