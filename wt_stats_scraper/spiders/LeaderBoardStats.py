@@ -15,6 +15,11 @@ def get_timestamp():
 class LeaderBoardStatsSpider(scrapy.Spider):
     name = "LeaderBoardStats"
     start_url = "https://warthunder.com/en/community/getclansleaderboard/dif/_hist/page/{page}/sort/dr_era5?_={time}"
+    custom_settings = {
+        'ITEM_PIPELINES': {
+            "wt_stats_scraper.pipelines.ClansWTPipeline": 300,
+        }
+    }
 
     def start_requests(self):
         timestamp = get_timestamp()
