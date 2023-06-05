@@ -4,14 +4,11 @@ import time
 import schedule
 
 from background import keep_alive
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
 PY_PATH = '/home/runner/SOFUA/venv/bin/python -m'
 
 class ScheduleSpiders:
 
     def __init__(self):
-        self.process = CrawlerProcess(get_project_settings())
         self.schedule = schedule
         self.schedule_daily_leader_board_parsing()
         self.schedule_daily_players_parsing()
@@ -36,7 +33,6 @@ class ScheduleSpiders:
         keep_alive()
         while True:
             self.schedule.run_pending()
-            self.process.start()
             print('Sleeping for 30 seconds...')
             time.sleep(30)
 

@@ -47,6 +47,7 @@ class WtStatsScraperPipeline:
         self.con.commit()
 
     def make_player_message(self, old_data, item):
+        self.player_iter += 1
         title = f"{EMOJI['track_clan']} {item['nick']}" if item['nick'] in CLAN_LEADERS else f"__{item['nick']}__"
         change = int(item['rating']) - old_data[1]
         emoji = EMOJI['increase'] if change > 0 else EMOJI['decrease']
