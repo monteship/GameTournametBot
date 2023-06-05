@@ -1,4 +1,0 @@
-schedule~=1.2.0
-Scrapy~=2.9.0
-Flask~=2.3.2
-itemadapter~=0.8.0

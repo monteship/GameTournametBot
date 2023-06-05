@@ -25,7 +25,7 @@ BOT_NAME = "wt_stats_scraper"
 SPIDER_MODULES = ["wt_stats_scraper.spiders"]
 NEWSPIDER_MODULE = "wt_stats_scraper.spiders"
 
-# USER_AGENT = "SOFUA"
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
 
 ROBOTSTXT_OBEY = False
 
@@ -35,6 +35,10 @@ TELNETCONSOLE_ENABLED = False
 #    "wt_stats_scraper.middlewares.WtStatsScraperSpiderMiddleware": 543,
 # }
 
+DOWNLOAD_HANDLERS = {
+    "http": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+    "https": "scrapy_playwright.handler.ScrapyPlaywrightDownloadHandler",
+}
 
 # DOWNLOADER_MIDDLEWARES = {
 #    "wt_stats_scraper.middlewares.WtStatsScraperDownloaderMiddleware": 543,

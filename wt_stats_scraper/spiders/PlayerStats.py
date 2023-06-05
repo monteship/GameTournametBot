@@ -1,8 +1,7 @@
 import datetime
 
 import scrapy
-from scrapy.crawler import CrawlerProcess
-from scrapy.utils.project import get_project_settings
+from scrapy_playwright.page import PageMethod
 
 from ..items import PlayerItem
 from ..settings import CLAN_URL
@@ -10,11 +9,16 @@ from ..settings import CLAN_URL
 
 class PlayerStatsSpider(scrapy.Spider):
     name = "PlayerStats"
-    start_urls = [CLAN_URL]
+    start_url = CLAN_URL
 
     def __init__(self, table_name, **kwargs):
         super().__init__(**kwargs)
         self.table_name = table_name
+
+    def start_requests(self):
+        yield scrapy.Request(
+            self.start_url,
+        )
 
     def parse(self, response):
         grid = response.css('.squadrons-members__grid-item')

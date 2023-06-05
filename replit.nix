@@ -4,15 +4,13 @@
     pkgs.systemd
     pkgs.python310Full
     pkgs.replitPackages.stderred
+    pkgs.scrapy
   ];
   env = {
     PYTHON_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-      # Needed for pandas / numpy
       pkgs.stdenv.cc.cc.lib
       pkgs.zlib
-      # Needed for pygame
       pkgs.glib
-      # Needed for matplotlib
       pkgs.xorg.libX11
     ];
     PYTHONHOME = "${pkgs.python310Full}";
@@ -20,5 +18,6 @@
     LANG = "en_US.UTF-8";
     STDERREDBIN = "${pkgs.replitPackages.stderred}/bin/stderred";
     PRYBAR_PYTHON_BIN = "${pkgs.replitPackages.prybar-python310}/bin/prybar-python310";
+    PATH = "${pkgs.scrapy}/bin:${pkgs.python310Full}/bin:${pkgs.systemd}/bin:${pkgs.sudo}/bin:${pkgs.zlib}/bin:${pkgs.glib}/bin:${pkgs.xorg.libX11}/bin:${pkgs.replitPackages.stderred}/bin:${pkgs.replitPackages.prybar-python310}/bin:${pkgs.stdenv.cc.cc.lib}/bin:${pkgs.stdenv.cc.cc.lib}/sbin";
   };
 }
