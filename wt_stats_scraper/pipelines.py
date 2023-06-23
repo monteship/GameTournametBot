@@ -1,3 +1,4 @@
+import datetime
 import logging
 import sqlite3
 from abc import ABC, abstractmethod
@@ -5,10 +6,16 @@ from abc import ABC, abstractmethod
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
 from .settings import EMOJI, CLAN_LEADERS, CLAN_URL, WEBHOOK_PLAYERS, WEBHOOK_DAY, TRACKED_CLAN, WEBHOOK_SQUADRONS, \
-    LEADERBOARD_URL, DB_NAME
+    LEADERBOARD_URL, DB_NAME, WEBHOOK_ABANDONED
 
 
 class AbstractWTPipeline(ABC):
+    players_tables = [
+        'players_daily', 'players_instant',
+    ]
+    squadrons_tables = [
+        'squadrons_daily', 'squadrons_instant',
+    ]
 
     def __init__(self):
         self.con = sqlite3.connect(DB_NAME)
@@ -53,13 +60,13 @@ class AbstractWTPipeline(ABC):
             self.send_message()
 
     def create_tables(self):
-        for table_name in ['players_daily', 'players_instant']:
+        for table_name in self.players_tables:
             self.cur.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {table_name} 
                        ("nick" TEXT, "rating" INTEGER, "activity" INTEGER, "role" TEXT, "date_joined" DATE)
                    ''')
-        for table_name in ['squadrons_daily', 'squadrons_instant']:
+        for table_name in self.squadrons_tables:
             self.cur.execute(
                 f'''
                 CREATE TABLE IF NOT EXISTS {table_name} 
@@ -68,7 +75,28 @@ class AbstractWTPipeline(ABC):
         self.con.commit()
 
 
+def inform_leaving(nick, rating, date_joined):
+    webhook = DiscordWebhook(url=WEBHOOK_ABANDONED)
+    webhook.remove_embeds()
+    date_join = datetime.datetime.strptime(date_joined, '%Y-%m-%d').date()
+    summary = datetime.datetime.today().date() - date_join
+    embed = DiscordEmbed(
+        title=f"{nick}",
+        description=f""" \n ```Покинув нас з очками в кількості: {rating} \n
+                    Пробув з нами {str(summary.days)} дня/днів\n
+                    Можливо він змінив нік.```
+                    [Перевірити](https://warthunder.com/en/community/userinfo/?nick={nick})
+                    \n""",
+        color="000000",
+        url=f"https://warthunder.com/en/community/userinfo/?nick={nick}"
+
+    )
+    webhook.add_embed(embed)
+    webhook.execute(remove_embeds=True)
+
+
 class PlayersWTPipeline(AbstractWTPipeline, ABC):
+
     def __init__(self):
         super().__init__()
         self.members = []
@@ -120,9 +148,23 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
                     value=changes
                 )
 
+    def close_spider(self, spider):
+        self.check_leavers()
+        self.con.commit()
+        self.con.close()
+        if self.messages:
+            self.build_embed()
+            # self.send_message()
+
     def check_leavers(self):
-        self.cur.execute("SELECT nick FROM players_instant")
+        self.cur.execute("SELECT nick, rating, date_joined FROM players_instant")
         database_members = self.cur.fetchall()
+        leavers = [member for member in database_members if member[0] not in self.members]
+        for leaver in leavers:
+            inform_leaving(*leaver)
+            self.cur.execute(
+                f"DELETE FROM players_instant WHERE nick = ?",
+                (leaver[0],))
         logging.info(f"Database members: {database_members}")
 
 
