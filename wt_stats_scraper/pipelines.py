@@ -150,11 +150,12 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
 
     def close_spider(self, spider):
         self.check_leavers()
+        self.assign_roles()
         self.con.commit()
         self.con.close()
         if self.messages:
             self.build_embed()
-            # self.send_message()
+            self.send_message()
 
     def check_leavers(self):
         self.cur.execute("SELECT nick, rating, date_joined FROM players_instant")
@@ -162,10 +163,13 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
         leavers = [member for member in database_members if member[0] not in self.members]
         for leaver in leavers:
             inform_leaving(*leaver)
-            self.cur.execute(
-                f"DELETE FROM players_instant WHERE nick = ?",
-                (leaver[0],))
-        logging.info(f"Database members: {database_members}")
+            for table_name in self.players_tables:
+                self.cur.execute(
+                    f"DELETE FROM {table_name} WHERE nick = ?",
+                    (leaver[0],))
+
+    def assign_roles(self):
+        pass
 
 
 class ClansWTPipeline(AbstractWTPipeline, ABC):
