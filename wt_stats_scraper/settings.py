@@ -1,10 +1,9 @@
 import os
 
-test = "https://discord.com/api/webhooks/1104312032502759524/xcK4bI2gYJ3Z6WtP9rPiRIYLSuasw2ssmpS0Kh1Os8Dl6WxNnG8KVTsbZARswsOCWq2t"
-WEBHOOK_PLAYERS = os.environ.get('WEBHOOK_PLAYERS', test)
-WEBHOOK_SQUADRONS = os.environ.get('WEBHOOK_SQUADRONS', test)
-WEBHOOK_DAY = os.environ.get('WEBHOOK_DAY', test)
-WEBHOOK_ABANDONED = os.environ.get('WEBHOOK_ABANDONED', test)
+WEBHOOK_PLAYERS = os.environ.get('WEBHOOK_PLAYERS')
+WEBHOOK_SQUADRONS = os.environ.get('WEBHOOK_SQUADRONS')
+WEBHOOK_DAY = os.environ.get('WEBHOOK_DAY')
+WEBHOOK_ABANDONED = os.environ.get('WEBHOOK_ABANDONED')
 
 LEADERBOARD_URL = 'https://warthunder.com/en/community/clansleaderboard/'
 CLAN_URL = os.environ.get('CLAN_URL', 'https://warthunder.com/en/community/claninfo/Welcome%20to%20Ukraine')
