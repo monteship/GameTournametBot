@@ -4,3 +4,4 @@
 /.upm
 /__pycache__/
 /wt_stats_scraper/__pycache__/
+/wtstats.sqlite
