@@ -82,10 +82,10 @@ def inform_leaving(nick, rating, date_joined):
     summary = datetime.datetime.today().date() - date_join
     embed = DiscordEmbed(
         title=f"{nick}",
-        description=f""" \n ```Покинув нас з очками в кількості: {rating} \n
-                    Пробув з нами {str(summary.days)} дня/днів\n
-                    Можливо він змінив нік.```
-                    [Перевірити](https://warthunder.com/en/community/userinfo/?nick={nick})
+        description=f""" \n ```Left us with points in quantity: {rating} \n
+                    Stayed with us for a {str(summary.days)} day\n
+                    Maybe he changed his nickname.```
+                    [EXAMINE](https://warthunder.com/en/community/userinfo/?nick={nick})
                     \n""",
         color="000000",
         url=f"https://warthunder.com/en/community/userinfo/?nick={nick}"
@@ -129,11 +129,11 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
         title = f"{EMOJI['track_clan']} {item['nick']}" if item['nick'] in CLAN_LEADERS else f"__{item['nick']}__"
         change = int(item['rating']) - old_data[1]
         emoji = EMOJI['increase'] if change > 0 else EMOJI['decrease']
-        message = f"Очки: {item['rating']} {emoji} ``({change})``"
+        message = f"Points: {item['rating']} {emoji} ``({change})``"
         self.messages[title] = message
 
     def build_embed(self):
-        self.first_message.set_title("Активні гравці" if self.table == 'players_instant' else "Результати за день")
+        self.first_message.set_title("Active players" if self.table == 'players_instant' else "Results for the day")
         for message in {self.first_message, self.second_message}:
             message.set_url(CLAN_URL)
         for i, (title, changes) in enumerate(self.messages.items(), 1):
@@ -161,6 +161,8 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
         self.cur.execute("SELECT nick, rating, date_joined FROM players_instant")
         database_members = self.cur.fetchall()
         leavers = [member for member in database_members if member[0] not in self.members]
+        if len(leavers) > 10:
+            return
         for leaver in leavers:
             inform_leaving(*leaver)
             for table_name in self.players_tables:
@@ -211,16 +213,16 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
                 elif change < 0:
                     changes[key] = f"{item[key]} {EMOJI['decrease']} ({change})"
         message = f"""
-            **Місце**: {item['rank']}
-            **Очки**: {item['rating']}
+            **Rank**: {item['rank']}
+            **Points**: {item['rating']}
             **K\\D**: {item['kills_to_death']}
-            **Члени**: {item['members']}
+            **Members**: {item['members']}
         """
         self.messages[item['rank']] = (title, message)
 
     def build_embed(self):
         self.stop_item_iter = 19
-        self.first_message.set_title("Таблиця лідерів" if self.table == 'squadrons_instant' else "Результати за день")
+        self.first_message.set_title("Leaderboard" if self.table == 'squadrons_instant' else "Results for the day")
         for message in {self.first_message, self.second_message}:
             message.set_url(LEADERBOARD_URL)
         for i, (title, changes) in self.messages.items():
