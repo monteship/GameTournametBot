@@ -161,14 +161,13 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
         self.cur.execute("SELECT nick, rating, date_joined FROM players_instant")
         database_members = self.cur.fetchall()
         leavers = [member for member in database_members if member[0] not in self.members]
-        if len(leavers) > 10:
-            return
-        for leaver in leavers:
-            inform_leaving(*leaver)
-            for table_name in self.players_tables:
-                self.cur.execute(
-                    f"DELETE FROM {table_name} WHERE nick = ?",
-                    (leaver[0],))
+        if len(leavers) < 10:
+            for leaver in leavers:
+                inform_leaving(*leaver)
+                for table_name in self.players_tables:
+                    self.cur.execute(
+                        f"DELETE FROM {table_name} WHERE nick = ?",
+                        (leaver[0],))
 
     def assign_roles(self):
         pass
