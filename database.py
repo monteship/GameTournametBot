@@ -3,7 +3,13 @@ from typing import Optional, List
 
 import pydantic
 
-from scrapers import ClanLeaderboardItem, GlobalLeaderboardItem, ScrapedPlayerItem
+from scrapers import (
+    ClanLeaderboardItem,
+    GlobalLeaderboardItem,
+    ScrapedPlayerItem,
+    ScrapedClanItem,
+)
+from settings import CLANS
 
 
 class Leaver(pydantic.BaseModel):
@@ -18,6 +24,15 @@ class Leaver(pydantic.BaseModel):
         self.rating = rating
         self.date_joined = date_joined
         self.clan = clan
+
+
+class DatabaseClanItem(pydantic.BaseModel):
+    rank: int
+    name: str
+    tag: str
+    members: int
+    rating: int
+    kills_to_death: float
 
 
 class SQLDatabase:
@@ -38,25 +53,48 @@ class SQLDatabase:
 
     def update_leaderboard_data(
         self, leaderboard_item: GlobalLeaderboardItem, table: str
-    ) -> Optional[list]:
+    ) -> Optional[List]:
         has_changes = []
         for clan_item in leaderboard_item.clans:
             self.cur.execute(
-                f"SELECT rank, members, rating, kills_to_death FROM {table} WHERE tag = ?",
+                f"SELECT rank, name, tag, members, rating, kills_to_death FROM {table} WHERE tag = ?",
                 (clan_item.tag,),
             )
             stored_data = self.cur.fetchone()
+
             if not stored_data:
                 self.cur.execute(
                     f"INSERT INTO {table} VALUES (?, ?, ?, ?, ?, ?)",
-                    (str(clan_item)),
+                    (
+                        clan_item.tag,
+                        clan_item.rank,
+                        clan_item.name,
+                        clan_item.members,
+                        clan_item.rating,
+                        clan_item.kills_to_death,
+                    ),
                 )
             else:
                 self.cur.execute(
                     f"UPDATE {table} SET name = ?, rank = ?, members = ?, rating = ?, kills_to_death = ? WHERE tag = ?",
-                    (str(clan_item)),
+                    (
+                        clan_item.name,
+                        clan_item.rank,
+                        clan_item.members,
+                        clan_item.rating,
+                        clan_item.kills_to_death,
+                        clan_item.tag,
+                    ),
                 )
-                has_changes.append((stored_data, clan_item))
+                database_item = DatabaseClanItem(
+                    rank=stored_data[0],
+                    name=stored_data[1],
+                    tag=stored_data[2],
+                    members=stored_data[3],
+                    rating=stored_data[4],
+                    kills_to_death=stored_data[5],
+                )
+                has_changes.append((database_item, clan_item))
         self.con.commit()
         return has_changes
 
@@ -65,7 +103,7 @@ class SQLDatabase:
         leaderboard_item: ClanLeaderboardItem,
         table: str,
     ) -> (dict, List[Leaver]):
-        has_changes = dict()
+        has_changes = {key: [] for key in [clan.tag for clan in CLANS]}
         leavers = self.check_leavers(leaderboard_item.players)
         for player_item in leaderboard_item.players:
             self.cur.execute(

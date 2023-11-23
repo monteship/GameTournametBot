@@ -1,7 +1,9 @@
 import abc
 import datetime
+from typing import List
 
-from database import Leaver
+from database import Leaver, DatabaseClanItem
+from scrapers import ScrapedClanItem
 from settings import ClanCredentials, EMOJI, LEADERBOARD_URL
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
@@ -77,13 +79,15 @@ class LeaderboardNotifier(AbstractNotifier):
     def __init__(
         self,
         clan_credentials: ClanCredentials,
-        has_changes: list,
+        has_changes: List,
         table_name: str,
     ):
         super().__init__(clan_credentials, has_changes, table_name)
 
     def generate_message(self):
-        for item, old_data in self.has_changes:
+        for old_data, item in self.has_changes:
+            old_data: DatabaseClanItem = old_data
+            item: ScrapedClanItem = item
             msg_emoji = (
                 EMOJI["track_clan"]
                 if self.clan_credentials.tag in item.name
@@ -91,17 +95,23 @@ class LeaderboardNotifier(AbstractNotifier):
             )
             title = f"{msg_emoji}          __{item.name}__"
             changes = dict(
-                rank=item.rank - int(old_data[0]),
-                members=item.members - int(old_data[1]),
-                rating=item.rating - int(old_data[2]),
-                kills_to_death=round((item.kills_to_death - int(old_data[3])), 2),
+                rank=item.rank - int(old_data.rank),
+                members=item.members - int(old_data.members),
+                rating=item.rating - int(old_data.rating),
+                kills_to_death=round(
+                    (item.kills_to_death - int(old_data.kills_to_death)), 2
+                ),
             )
             for key, change in changes.items():
                 for i in range(0, 4):
                     if change > 0:
-                        changes[key] = f"{item[key]} {EMOJI['increase']} (+{change})"
+                        changes[
+                            key
+                        ] = f"{item.model_dump()[key]} {EMOJI['increase']} (+{change})"
                     elif change < 0:
-                        changes[key] = f"{item[key]} {EMOJI['decrease']} ({change})"
+                        changes[
+                            key
+                        ] = f"{item.model_dump()[key]} {EMOJI['decrease']} ({change})"
             message = f"""
                 **Rank**: {item.rank}
                 **Points**: {item.rating}
@@ -144,7 +154,7 @@ class PlayersNotifier(AbstractNotifier):
         self.second_message = DiscordEmbed(color="ff0000", url=clan_credentials.url)
 
     def generate_message(self):
-        for item, old_data in self.has_changes:
+        for old_data, item in self.has_changes:
             title = (
                 f"{EMOJI['track_clan']} {item.nick}"
                 if item.nick in self.clan_credentials.officers

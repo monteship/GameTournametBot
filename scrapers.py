@@ -15,9 +15,6 @@ class ScrapedClanItem(pydantic.BaseModel):
     rating: int
     kills_to_death: float
 
-    def __str__(self):
-        return f"('{self.tag}', {self.rank}, {self.members}, {self.rating}, {self.kills_to_death})"
-
 
 class GlobalLeaderboardItem(pydantic.BaseModel):
     clans: list[ScrapedClanItem]

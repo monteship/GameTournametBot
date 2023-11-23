@@ -1,6 +1,8 @@
+import logging
 import time
 
 import schedule
+from icecream import ic
 
 from background import keep_alive
 from database import SQLDatabase
@@ -24,6 +26,7 @@ class ScheduleSpiders:
     def update_leaderboard(self, table_name):
         scraper = ClansLeaderboardScraper()
         leaderboard_item: GlobalLeaderboardItem = scraper.get_leaderboard
+        ic(f"Updating leaderboard for {table_name}")
         has_changes = self.db.update_leaderboard_data(leaderboard_item, table_name)
         if not has_changes:
             return
@@ -32,18 +35,27 @@ class ScheduleSpiders:
             notify.process()
 
     def update_players(self, table_name):
-        scraper = PlayersLeaderboardScraper()
+        scraper = PlayersLeaderboardScraper(CLANS)
         players_item: ClanLeaderboardItem = scraper.get_leaderboard
         has_changes, leavers = self.db.update_players_data(players_item, table_name)
         for clan, changes in has_changes.items():
-            notify = PlayersNotifier(CLANS[clan], has_changes, table_name)
+            notify = PlayersNotifier(
+                [
+                    clan_credentials
+                    for clan_credentials in CLANS
+                    if clan_credentials.tag == clan
+                ][0],
+                changes,
+                table_name,
+            )
             notify.process()
         for leaver in leavers:
             inform_leaving(leaver, CLANS[leaver.clan])
 
     def schedule_daily_leader_board_parsing(self):
+        ic("Scheduling leaderboard parsing")
         self.schedule.every().day.at("22:15").do(
-            self.update_leaderboard(table_name="squadrons_daily")
+            lambda: self.update_leaderboard(table_name="squadrons_daily")
         )
 
         clans_parsing_time = [
@@ -51,16 +63,16 @@ class ScheduleSpiders:
         ]
         for parsing_time in clans_parsing_time:
             self.schedule.every().day.at(parsing_time).do(
-                self.update_leaderboard(table_name="squadrons_instant")
+                lambda: self.update_leaderboard(table_name="squadrons_instant")
             )
 
     def schedule_daily_players_parsing(self):
+        ic("Scheduling players parsing")
         self.schedule.every().day.at("22:16").do(
-            self.update_players(table_name="players_daily")
+            lambda: self.update_players(table_name="players_daily")
         )
-
         self.schedule.every().minute.do(
-            self.update_players(table_name="players_instant")
+            lambda: self.update_players(table_name="players_instant")
         )
 
     def start(self):
