@@ -2,9 +2,7 @@ import logging
 import time
 
 import schedule
-from icecream import ic
 
-from background import keep_alive
 from database import SQLDatabase
 from notify import LeaderboardNotifier, PlayersNotifier, inform_leaving
 from scrapers import (
@@ -26,7 +24,6 @@ class ScheduleSpiders:
     def update_leaderboard(self, table_name):
         scraper = ClansLeaderboardScraper()
         leaderboard_item: GlobalLeaderboardItem = scraper.get_leaderboard
-        ic(f"Updating leaderboard for {table_name}")
         has_changes = self.db.update_leaderboard_data(leaderboard_item, table_name)
         if not has_changes:
             return
@@ -53,7 +50,6 @@ class ScheduleSpiders:
             inform_leaving(leaver, CLANS[leaver.clan])
 
     def schedule_daily_leader_board_parsing(self):
-        ic("Scheduling leaderboard parsing")
         self.schedule.every().day.at("22:15").do(
             lambda: self.update_leaderboard(table_name="squadrons_daily")
         )
@@ -67,7 +63,6 @@ class ScheduleSpiders:
             )
 
     def schedule_daily_players_parsing(self):
-        ic("Scheduling players parsing")
         self.schedule.every().day.at("22:16").do(
             lambda: self.update_players(table_name="players_daily")
         )
@@ -76,7 +71,6 @@ class ScheduleSpiders:
         )
 
     def start(self):
-        keep_alive()
         while True:
             self.schedule.run_pending()
             print("Sleeping for 30 seconds...")

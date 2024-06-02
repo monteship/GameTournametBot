@@ -1,5 +1,4 @@
 import datetime
-import logging
 import sqlite3
 from abc import ABC, abstractmethod
 
@@ -101,6 +100,13 @@ class PlayersWTPipeline(AbstractWTPipeline, ABC):
         super().__init__()
         self.members = []
 
+    def send_message(self):
+        webhook = DiscordWebhook(url=self.webhook_url)
+        webhook.add_embed(self.first_message)
+        webhook.execute(remove_embeds=True)
+        if len(self.messages) > ((self.stop_item_iter + 1) / 2):
+            webhook.add_embed(self.second_message)
+            webhook.execute(remove_embeds=True)
     def process_item(self, item, spider):
         super().process_item(item, spider)
         self.members.append(item['nick'])
