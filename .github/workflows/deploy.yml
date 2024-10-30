@@ -22,24 +22,6 @@ jobs:
         SSH_HOST: ${{ secrets.SSH_HOST }}
         SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
 
-        WEBHOOK_PLAYERS: ${{ secrets.WEBHOOK_PLAYERS }}
-        WEBHOOK_SQUADRONS: ${{ secrets.WEBHOOK_SQUADRONS }}
-        WEBHOOK_DAY: ${{ secrets.WEBHOOK_DAY }}
-        WEBHOOK_ABANDONED: ${{ secrets.WEBHOOK_ABANDONED }}
-        CLAN_URL: ${{ secrets.CLAN_URL }}
-
       run: |
-        echo "Deploying with the following environment variables:"
-        echo "WEBHOOK_PLAYERS=$WEBHOOK_PLAYERS"
-        echo "WEBHOOK_SQUADRONS=$WEBHOOK_SQUADRONS"
-        echo "WEBHOOK_DAY=$WEBHOOK_DAY"
-        echo "WEBHOOK_ABANDONED=$WEBHOOK_ABANDONED"
-        echo "CLAN_URL=$CLAN_URL"
         sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no $SSH_USERNAME@$SSH_HOST '\
-        echo "export WEBHOOK_PLAYERS=$WEBHOOK_PLAYERS" >> ~/.bashrc && \
-        echo "export WEBHOOK_SQUADRONS=$WEBHOOK_SQUADRONS" >> ~/.bashrc && \
-        echo "export WEBHOOK_DAY=$WEBHOOK_DAY" >> ~/.bashrc && \
-        echo "export WEBHOOK_ABANDONED=$WEBHOOK_ABANDONED" >> ~/.bashrc && \
-        echo "export CLAN_URL=$CLAN_URL" >> ~/.bashrc && \
-        source ~/.bashrc && \
         cd /root/GameTournametBot && git pull && pip3 install -r requirements.txt'
