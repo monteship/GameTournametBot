@@ -1,5 +1,9 @@
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 WEBHOOK_PLAYERS = os.environ.get("WEBHOOK_PLAYERS")
 WEBHOOK_SQUADRONS = os.environ.get("WEBHOOK_SQUADRONS")
 WEBHOOK_DAY = os.environ.get("WEBHOOK_DAY")
