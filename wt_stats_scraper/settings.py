@@ -1,18 +1,10 @@
-WEBHOOK_PLAYERS = (
-    "https://discord.com/api/webhooks/1076967433186852994/pHOjc3Ta0_HxLHU0YlMtH7UfV-Xll_OLWIZKXxPJzIenqyq1m5fo4ZsmYT8i6MolwSBV",
-)
+WEBHOOK_PLAYERS = "https://discord.com/api/webhooks/1076967433186852994/pHOjc3Ta0_HxLHU0YlMtH7UfV-Xll_OLWIZKXxPJzIenqyq1m5fo4ZsmYT8i6MolwSBV"
 
-WEBHOOK_SQUADRONS = (
-    "https://discord.com/api/webhooks/1076968282831196300/2AQp-OcXn0WvsbAeB60VCRyz7-kCZxqDe34uCPzM8CE4vEwVS1FEk05yLZj23Lb9xgwi",
-)
+WEBHOOK_SQUADRONS = "https://discord.com/api/webhooks/1076968282831196300/2AQp-OcXn0WvsbAeB60VCRyz7-kCZxqDe34uCPzM8CE4vEwVS1FEk05yLZj23Lb9xgwi"
 
-WEBHOOK_DAY = (
-    "https://discord.com/api/webhooks/1076968357363978290/fWDFEuWdqTL5wUDhm8ZVIaNeNuRWDKCXll2IM2tsdqNW7HwBipSaTz1-iw91mF8Rov3l",
-)
+WEBHOOK_DAY = "https://discord.com/api/webhooks/1076968357363978290/fWDFEuWdqTL5wUDhm8ZVIaNeNuRWDKCXll2IM2tsdqNW7HwBipSaTz1-iw91mF8Rov3l"
 
-WEBHOOK_ABANDONED = (
-    "https://discord.com/api/webhooks/1078003366673788938/9zPfvY6fxy0bub5LbMOWaL5Za2lTAsd2Y4gbvH7F4YZetBTfRTj0pfR3sKA0kwwZKPba",
-)
+WEBHOOK_ABANDONED = "https://discord.com/api/webhooks/1078003366673788938/9zPfvY6fxy0bub5LbMOWaL5Za2lTAsd2Y4gbvH7F4YZetBTfRTj0pfR3sKA0kwwZKPba"
 
 
 LEADERBOARD_URL = "https://warthunder.com/en/community/clansleaderboard/"
