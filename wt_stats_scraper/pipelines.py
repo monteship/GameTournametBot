@@ -240,8 +240,8 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
                 f"INSERT INTO {self.table} VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     item["tag"],
-                    item["name"],
                     item["rank"],
+                    item["name"],
                     item["members"],
                     item["rating"],
                     item["kills_to_death"],
@@ -267,6 +267,9 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
             EMOJI["track_clan"] if TRACKED_CLAN in item["name"] else EMOJI["all_clans"]
         )
         title = f"{msg_emoji}          __{item['name']}__"
+        # Hot-fix
+        if isinstance(old_data[0], str):
+            old_data[0], old_data[1] = old_data[1], old_data[0]
         changes = dict(
             rank=item["rank"] - int(old_data[0]),
             members=item["members"] - int(old_data[1]),
@@ -279,6 +282,8 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
                     changes[key] = f"{item[key]} {EMOJI['increase']} (+{change})"
                 elif change < 0:
                     changes[key] = f"{item[key]} {EMOJI['decrease']} ({change})"
+                else:
+                    changes[key] = f"{item[key]}"
         message = f"""
             **Rank**: {changes['rank']}
             **Points**: {changes['rating']}
