@@ -1,6 +1,7 @@
 import datetime
 
 import scrapy
+from scrapy.http import TextResponse
 
 from ..items import ClanItem
 
@@ -16,7 +17,7 @@ class LeaderBoardStatsSpider(scrapy.Spider):
     name = "LeaderBoardStats"
     start_url = "https://warthunder.com/en/community/getclansleaderboard/dif/_hist/page/{page}/sort/dr_era5?_={time}"
     custom_settings = {
-        'ITEM_PIPELINES': {
+        "ITEM_PIPELINES": {
             "wt_stats_scraper.pipelines.ClansWTPipeline": 300,
         }
     }
@@ -30,14 +31,27 @@ class LeaderBoardStatsSpider(scrapy.Spider):
         super().__init__(**kwargs)
         self.table_name = table_name
 
-    def parse(self, response):
-        for quote in response.json()['data']:
-            stats = quote['astat']
+    def parse(self, response: TextResponse, **kwargs):
+        clans = response.jmespath("data")
+        for clan in clans:
+            rank = int(clan.jmespath("pos").get("0")) + 1
+            tag = clan.jmespath("tagl").get()
+            name = clan.jmespath("lastPaidTag").get()
+            members = int(clan.jmespath("members_cnt").get("0"))
+            rating = int(clan.jmespath("astat.dr_era5_hist").get("0"))
+            kills = sum(
+                [
+                    int(k)
+                    for k in clan.jmespath("astat.[akills_hist, gkills_hist]").getall()
+                ]
+            )
+            deaths = int(clan.jmespath("astat.deaths_hist").get("0"))
+            kills_to_death = round(kills / deaths, 2)
             yield ClanItem(
-                rank=quote['pos'] + 1,
-                tag=quote['tagl'],
-                name=quote['lastPaidTag'],
-                members=quote['members_cnt'],
-                rating=stats['dr_era5_hist'],
-                kills_to_death=round((stats['akills_hist'] + stats['gkills_hist']) / stats['deaths_hist'], 2),
+                rank=rank,
+                tag=tag,
+                name=name,
+                members=members,
+                rating=rating,
+                kills_to_death=kills_to_death,
             )
