@@ -271,7 +271,7 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
         if isinstance(old_data[0], str):
             old_data[0], old_data[1] = old_data[1], old_data[0]
         changes = dict(
-            rank=item["rank"] - int(old_data[0]),
+            rank=int(old_data[0]) - item["rank"],
             members=item["members"] - int(old_data[1]),
             rating=item["rating"] - int(old_data[2]),
             kills_to_death=round((item["kills_to_death"] - int(old_data[3])), 2),
