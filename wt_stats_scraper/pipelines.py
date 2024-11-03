@@ -266,7 +266,7 @@ class ClansWTPipeline(AbstractWTPipeline, ABC):
         msg_emoji = (
             EMOJI["track_clan"] if TRACKED_CLAN in item["name"] else EMOJI["all_clans"]
         )
-        title = f"{msg_emoji}          __{item['name']}__"
+        title = f"{msg_emoji}" + f"__{item['name']}__".rjust(32)
         # Hot-fix
         if isinstance(old_data[0], str):
             old_data[0], old_data[1] = old_data[1], old_data[0]
